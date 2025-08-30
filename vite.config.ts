@@ -6,9 +6,11 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 export default defineConfig({
-  base: '/mousecage/',   // ✅ 路径前缀
+  // 只保留这一行，设置为相对路径
+  base: './',
+
   plugins: [
-    tailwind(),   // ← 必须要有这行
+    tailwind(),
     vue(),
     vueJsx(),
     vueDevTools(),
