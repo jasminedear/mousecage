@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* 可选：定义你的主题变量，方便给业务状态用 */
+@theme {
+  --brand: var(--color-indigo-600);
+  --male: var(--color-blue-600);
+  --female: var(--color-pink-600);
+  --underage: var(--color-purple-600);
+  --pregnant: var(--color-green-600);
+  --nursing: var(--color-yellow-500);
+  --again: var(--color-cyan-600);
+}
+
+/* 可选：通用卡片外观 */
+.card {
+  @apply rounded-2xl bg-white p-5 shadow-lg ring-1 ring-black/5 transition
+         hover:shadow-xl hover:-translate-y-[1px];
+}

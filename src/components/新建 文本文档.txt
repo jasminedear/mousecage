@@ -1,0 +1,196 @@
+src/
+ ├─ components/
+ │   ├─ CageGrid.vue          # 笼位总览 + 搜索 + 导出按钮+导入
+ │   ├─ MouseCard.vue         # 老鼠卡片（颜色区分，鼠标悬浮显示简介）
+ │   ├─ MouseDetail.vue       # 老鼠详细信息（弹窗，可编辑）
+ │   ├─ AddMouseModal.vue     # 添加老鼠
+ │   ├─ AddCageModal.vue      # 添加笼位
+ │   ├─ MoveMouseModal.vue    # 移动老鼠（记录）
+ │   ├─ BreedingModal.vue     # 繁育记录
+ │   └─ ExportDropdown.vue    # 导出功能（JSON/CSV/Excel）
+ │
+ ├─ store/
+ │   └─ mice.js               # Pinia，统一数据 & 动作
+ │
+ ├─ utils/
+ │   └─ export.js             # 导出工具函数
+ │
+ ├─ App.vue
+ └─ main.ts
+👌 好，那我们就按照一个最自然的开发顺序来走，避免返工。建议从 **数据层 → 组件层 → 功能层** 的思路开始：
+
+---
+
+### 🥇 第一步：数据层（Pinia store）
+
+* 先把 **`store/mice.js`** 写好，因为所有组件都会用到它。
+* 这里面要包含：
+
+  * **state**：老鼠列表、笼位列表、繁育记录。
+  * **actions**：
+
+    * `addMouse()` 新增老鼠
+    * `addCage()` 新增笼位
+    * `moveMouse()` 移动老鼠
+    * `breed()` 繁育
+    * `updateMouse()` 修改老鼠详细信息
+    * `removeMouse()` 删除老鼠
+  * **getters**：比如按笼位筛选、搜索老鼠。
+
+这样以后所有组件直接调 `useMiceStore()`，不会各自维护数据。
+
+---
+
+### 🥈 第二步：基础 UI 框架
+
+* 搭一个 **笼位总览页 CageGrid.vue**，里面循环渲染老鼠卡片 (`MouseCard.vue`)。
+* 确保能显示：
+
+  * 笼位 → 老鼠 → 老鼠卡片颜色（不同状态）。
+* 先用假数据，等 store 写好再接。
+
+---
+
+### 🥉 第三步：模态框功能
+
+* 一个个加上去，顺序建议：
+
+  1. **AddMouseModal.vue**（最基础，能新增老鼠）
+  2. **MouseDetail.vue**（能查看 + 编辑）
+  3. **MoveMouseModal.vue**（配合 CageGrid 里的右键/按钮）
+  4. **AddCageModal.vue**
+  5. **BreedingModal.vue**
+
+---
+
+### 🏅 第四步：工具功能
+
+* `ExportDropdown.vue`（调用 `utils/export.js`）
+* 后面可以加 `import.js`（导入 Excel/CSV）
+
+---
+
+### ⚡ 建议起点
+
+我建议咱们**先写 `store/mice.js`**，因为这是整个系统的核心。
+等它定下来，所有组件都能接上，不会重复造数据。
+
+---
+
+好主意 👍
+我给你整理一个「**项目核心数据唯一性备忘录**」，方便你随时确认，不会再混乱。
+
+---
+
+# 📝 笼位管理项目唯一性备忘录
+
+## 1. **Pinia 实例**
+
+* **唯一来源**：`main.ts`
+* 必须写：
+
+  ```ts
+  import { createPinia } from "pinia"
+  app.use(createPinia())   // ✅ 全局唯一
+  ```
+* 绝对不要在组件里 `createPinia()`。
+* 组件里只用：
+
+  ```js
+  import { useMiceStore } from "@/stores/mice"
+  const miceStore = useMiceStore()
+  ```
+
+---
+
+## 2. **Store 文件**
+
+* **唯一文件**：`src/stores/mice.js`
+* 引入路径必须统一：`@/stores/mice`
+* ⚠️ 千万不要用 `@/store/mice`（少了一个 `s`）。
+
+---
+
+## 3. **核心数据结构**
+
+### `cages`
+
+* **唯一数组**：存放所有笼子。
+* 结构：
+
+  ```js
+  {
+    id: 1234567890,   // 唯一 ID（Date.now()）
+    name: "A-01",     // 笼子名
+    row: "A"          // 所属排（由 name 自动解析）
+  }
+  ```
+
+### `mice`
+
+* **唯一数组**：存放所有老鼠。
+* 结构（示例）：
+
+  ```js
+  {
+    id: 9876543210,  // 唯一 ID
+    name: "Mouse-1", // 老鼠名
+    cageId: 1234567890, // 所属笼子 id
+    genotype: "5×FAD",
+    sex: "M",
+    birthDate: "2025-01-01"
+  }
+  ```
+
+### `records`
+
+* **唯一日志数组**：记录操作历史。
+* 结构：
+
+  ```js
+  {
+    id: 1122334455,
+    action: "添加笼位 A-01 (所属 A排)",
+    time: "2025-08-29 10:12:34"
+  }
+  ```
+
+---
+
+## 4. **数据流**
+
+1. **添加笼子**
+
+   * 调用 `miceStore.addCage()` → 修改 `cages`
+   * CageGrid.vue 响应式更新
+
+2. **添加老鼠**
+
+   * 调用 `miceStore.addMouse()` → 修改 `mice`
+   * 根据 `cageId` 显示在对应 cage 下
+
+3. **重命名 / 删除排**
+
+   * 操作 `cages`，并自动清理相关数据
+   * 日志写入 `records`
+
+---
+
+## 5. **UI 渲染唯一来源**
+
+* CageGrid.vue 渲染时，必须基于 **`miceStore.cages`** 和 **`miceStore.mice`**。
+* 千万不要自己再维护一个本地 `ref([])` 来存笼子或老鼠，那会和 store 脱节。
+
+---
+
+✅ 只要记住：
+
+* **唯一 Pinia 实例**
+* **唯一 store 文件**
+* **唯一 cages / mice / records 三个数组**
+* **UI 只从 store 读，不复制一份**
+
+---
+
+要不要我帮你做一张 **「数据流图」**（操作 → store → UI 响应）？这样你以后一看就知道问题出在哪里。
+

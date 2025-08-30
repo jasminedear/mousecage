@@ -1,0 +1,19 @@
+src/
+ ├─ components/
+ │   ├─ CageGrid.vue          # 笼位总览 + 搜索 + 导出按钮+导入按钮+折叠排功能骨架
+ │   ├─ MouseCard.vue         # 老鼠卡片（颜色区分，鼠标悬浮显示简介）
+ │   ├─ MouseDetail.vue       # 老鼠详细信息（弹窗，可编辑）
+ │   ├─ AddMouseModal.vue     # 添加老鼠
+ │   ├─ AddCageModal.vue      # 添加笼位
+ │   ├─ MoveMouseModal.vue    # 移动老鼠（记录）
+ │   ├─ BreedingModal.vue     # 繁育记录
+ │   └─ ExportDropdown.vue    # 导出功能（JSON/CSV/Excel）
+ │
+ ├─ store/
+ │   └─ mice.js               # Pinia，统一数据 & 动作
+ │
+ ├─ utils/
+ │   └─ export.js             # 导出工具函数
+ │
+ ├─ App.vue
+ └─ main.ts
