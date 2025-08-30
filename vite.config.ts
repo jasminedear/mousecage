@@ -12,6 +12,7 @@ export default defineConfig({
     vue(),
     vueJsx(),
     vueDevTools(),
+    base: '/',
   ],
   resolve: {
     alias: {
