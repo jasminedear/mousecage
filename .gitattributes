@@ -1,1 +1,7 @@
-* text=auto eol=lf
+# 强制所有源码文件使用 LF
+*.js text eol=lf
+*.ts text eol=lf
+*.vue text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.d.ts text eol=lf
