@@ -84,15 +84,8 @@
       <div class="flex justify-between items-center px-4 py-3 bg-gray-100 cursor-pointer" @click="toggleRow(row.name)">
         <div class="flex items-center gap-3">
           <h2 class="text-lg font-semibold text-gray-800">
-            第{{ row.name }}排笼子
+            第{{ row.name }}排笼子 ({{ row.cages.length }} 笼)
           </h2>
-          <div v-if="rowSummary[row.name]" class="text-sm text-gray-600 flex gap-2 ml-4">
-            <span>总数: {{ rowSummary[row.name].totalMice }}</span>
-            <span>♂: {{ rowSummary[row.name].maleCount }}</span>
-            <span>♀: {{ rowSummary[row.name].femaleCount }}</span>
-            <span>基因型: {{ Object.keys(rowSummary[row.name].genotypes).join(', ') }}</span>
-            <span v-if="rowSummary[row.name].breedingCages > 0">繁育笼: {{ rowSummary[row.name].breedingCages }}</span>
-          </div>
           <button class="text-blue-500 hover:text-blue-700 transition-colors duration-200" @click.stop="editRow(row.name)">
             ✏️
           </button>
@@ -137,7 +130,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-4 gap-3">
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             <MouseCard
               v-for="mouse in getMiceByCage(cage.id)"
               :key="mouse.id"
@@ -180,6 +173,7 @@
 
     <AddCageModal v-if="showAddCage" @close="showAddCage = false" />
     <AddMouseModal v-if="showAddMouse" :cage-id="selectedCageId" @close="showAddMouse = false" />
+
     <MouseDetail
       v-if="selectedMouse"
       :mouse="selectedMouse"
@@ -188,12 +182,14 @@
       @open-pedigree="openPedigree"
     />
     <MoveMouseModal v-if="showMoveMouse" :mouse="movingMouse" :cages="miceStore.cages" @close="showMoveMouse = false" />
+    
     <PedigreeView 
       v-if="selectedPedigreeMouse" 
       :mouse="selectedPedigreeMouse" 
       @close="selectedPedigreeMouse = null"
       @open-other="openPedigree"
     />
+
     <MouseListModal v-if="showMouseListModal" @close="showMouseListModal = false" @assign-to-cage="openMoveMouseFromList" />
     <DeadMouseListModal v-if="showDeadMiceModal" @close="showDeadMiceModal = false" />
     <BreedingModal v-if="showBreeding" @close="showBreeding = false" />
@@ -216,14 +212,14 @@ import MouseListModal from "./MouseListModal.vue";
 import DeadMouseListModal from "./DeadMouseListModal.vue";
 import { importFile } from "@/utils/import";
 import { useMiceStore } from "@/stores/mice";
-import { useUserStore } from '@/stores/user'
 
 const miceStore = useMiceStore();
-const userStore = useUserStore();
 
+// 统一详情和族谱的状态，使用一个变量
 const selectedMouse = ref(null);
 const selectedPedigreeMouse = ref(null);
 
+// 视图与其他弹窗状态
 const selectedCageId = ref(null);
 const movingMouse = ref(null);
 const showBreedingRecords = ref(false);
@@ -235,6 +231,7 @@ const fileInput = ref(null);
 const showDeadMiceModal = ref(false);
 const showMouseListModal = ref(false);
 
+// 死亡原因下拉状态
 const showDeathReasonDropdown = ref(false);
 const dropdownX = ref(0);
 const dropdownY = ref(0);
@@ -243,8 +240,10 @@ const selectedDeathReason = ref("");
 const customDeathReason = ref("");
 const deathReasonOptions = ["生病", "老死", "实验"];
 
+// 统一后的 mice
 const normalizedMice = computed(() => miceStore.normalizedMice);
 
+// 颜色图例
 const colorLegends = computed(() => [
   { name: "雄性", bgColor: "bg-blue-500" },
   { name: "雌性", bgColor: "bg-red-500" },
@@ -253,46 +252,13 @@ const colorLegends = computed(() => [
   { name: "哺乳", bgColor: "bg-orange-500" },
 ]);
 
-const filterSex = ref("");
-const filterGenotype = ref("");
-const onlyWithPups = ref(false);
-const onlyEmptyCages = ref(false);
+// —— 筛选状态 —— //
+const filterSex = ref(""); // '', 'male', 'female'
+const filterGenotype = ref(""); // 基因型
+const onlyWithPups = ref(false); // 仅含“幼鼠”
+const onlyEmptyCages = ref(false); // 仅空笼（应用筛选后仍为空）
 
-// ⚡ 新增：计算每排的总览信息
-const rowSummary = computed(() => {
-  const summary = {};
-  miceStore.cages.forEach(cage => {
-    const rowName = cage.row || '未分组';
-    if (!summary[rowName]) {
-      summary[rowName] = {
-        totalMice: 0,
-        maleCount: 0,
-        femaleCount: 0,
-        genotypes: new Set(),
-        breedingCages: 0,
-      };
-    }
-    
-    // 获取该笼子的老鼠，并进行过滤（与 getMiceByCage 逻辑一致）
-    const miceInCage = getMiceByCage(cage.id);
-    summary[rowName].totalMice += miceInCage.length;
-
-    // 统计性别和基因型
-    miceInCage.forEach(mouse => {
-      if (mouse.sex === 'male') summary[rowName].maleCount++;
-      if (mouse.sex === 'female') summary[rowName].femaleCount++;
-      if (mouse.genotype) summary[rowName].genotypes.add(mouse.genotype);
-    });
-
-    // 统计繁育笼数量
-    if (getCageType(cage.id) === 'breeding') {
-      summary[rowName].breedingCages++;
-    }
-  });
-  return summary;
-});
-
-
+// 不受筛选影响（判断笼型）
 function getMiceInCageRaw(cageId) {
   return miceStore.normalizedMice.filter((m) => m.cageId === cageId);
 }
@@ -341,6 +307,7 @@ function cageBadge(cageId) {
   }
 }
 
+// —— 带筛选的取笼内老鼠 —— //
 function getMiceByCage(cageId) {
   let arr = miceStore.normalizedMice.filter((m) => m.cageId === cageId);
   if (filterSex.value) arr = arr.filter((m) => m.sex === filterSex.value);
@@ -351,6 +318,7 @@ function getMiceByCage(cageId) {
   return arr;
 }
 
+// —— 分排 —— //
 const groupedRows = computed(() => {
   const groups = {};
   miceStore.cages.forEach((cage) => {
@@ -365,11 +333,13 @@ const groupedRows = computed(() => {
   return Object.keys(groups).map((name) => ({ name, cages: groups[name] }));
 });
 
+// —— 折叠 —— //
 const collapsedRows = ref({});
 function toggleRow(rowName) {
   collapsedRows.value[rowName] = !collapsedRows.value[rowName];
 }
 
+// —— 行为 —— //
 function editRow(rowName) {
   const newName = prompt("请输入新的排名：", rowName);
   if (newName && newName.trim() !== "" && newName !== rowName) {
@@ -415,6 +385,7 @@ function openDetail(mouse) {
   selectedMouse.value = mouse;
 }
 
+// —— 笼内统计（受筛选影响）—— //
 function getCageSummary(cageId) {
   const miceInCage = getMiceByCage(cageId);
   const summary = { genotype: {}, sex: {} };
@@ -427,6 +398,7 @@ function getCageSummary(cageId) {
   return summary;
 }
 
+// —— 卡片“死亡”点击（定位弹层）—— //
 function handleRecordDeathClicked(payload) {
   const { mouse, event } = payload;
   currentMouseId.value = mouse.id;
@@ -438,6 +410,7 @@ function handleRecordDeathClicked(payload) {
   showDeathReasonDropdown.value = true;
 }
 
+// —— 死亡确认 —— //
 function confirmDeath() {
   let cause = "";
   if (selectedDeathReason.value === "自定义") {
@@ -459,6 +432,7 @@ function confirmDeath() {
   }
 }
 
+// —— 导入 —— //
 async function handleImport(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -478,16 +452,13 @@ async function handleImport(e) {
   }
 }
 
+// —— 保存 —— //
 function saveData() {
-  const userId = userStore.currentUser?.id;
-  if (userId) {
-    miceStore.saveToCloud(userId, { silent: false });
-    alert("保存成功！");
-  } else {
-    alert("请登录后保存！");
-  }
+  miceStore.saveToCloud({ silent: false });
+  alert("保存成功！");
 }
 
+// —— 自动保存（静默）—— //
 const AUTO_SAVE_INTERVAL_MS = 15000;
 let autoSaveTimer = null;
 watch(
@@ -498,45 +469,18 @@ watch(
     breeding: miceStore.breeding,
   }),
   () => {
-    const userId = userStore.currentUser?.id;
-    if (userId) {
-      if (autoSaveTimer) clearTimeout(autoSaveTimer);
-      autoSaveTimer = setTimeout(() => {
-        miceStore.saveToCloud(userId, { silent: true });
-      }, AUTO_SAVE_INTERVAL_MS);
-    }
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      miceStore.saveToCloud({ silent: true });
+    }, AUTO_SAVE_INTERVAL_MS);
   },
   { deep: true }
 );
 
-watch(
-  () => userStore.currentUser,
-  (newCurrentUser, oldCurrentUser) => {
-    if (newCurrentUser && !oldCurrentUser) {
-      miceStore.loadFromCloud(newCurrentUser.id);
-    } else if (!newCurrentUser && oldCurrentUser) {
-      miceStore.resetState();
-    }
-  },
-  { immediate: true }
-);
-// ⚡ 新增的 watch 效果：当笼位数据变化时，将所有排设为折叠
-watch(
-  () => miceStore.cages,
-  (newCages) => {
-    if (newCages.length > 0) {
-      const rows = [...new Set(newCages.map(c => c.row || '未分组'))];
-      const newCollapsedState = {};
-      rows.forEach(row => {
-        newCollapsedState[row] = true;
-      });
-      collapsedRows.value = newCollapsedState;
-    } else {
-      collapsedRows.value = {};
-    }
-  },
-  { immediate: true, deep: true }
-);
+// —— 初始化 —— //
+onMounted(() => {
+  miceStore.loadFromCloud?.();
+});
 </script>
 
 <style scoped>

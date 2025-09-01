@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-lg w-96 p-6 relative">
+    <div class="bg-white rounded-lg shadow-lg w-96 p-6 relative max-h-[90vh] overflow-y-auto">
       <button
         class="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
         @click="emit('close')"
@@ -34,8 +34,8 @@
 
         <label class="block">
           <span class="text-gray-700">基因型</span>
-          <select v-model="genotype" class="w-full border px-3 py-2 rounded mt-1" @change="checkCustomGenotype">
-            <option v-for="g in allGenotypes" :key="g" :value="g">{{ g }}</option>
+          <select v-model="genotype" class="w-full border px-3 py-2 rounded mt-1">
+            <option v-for="g in allGenotypeOptions" :key="g" :value="g">{{ g }}</option>
             <option value="custom">➕ 自定义</option>
           </select>
         </label>
@@ -47,12 +47,6 @@
             placeholder="请输入自定义基因型"
             class="w-full border px-3 py-2 rounded"
           />
-          <button
-            class="mt-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-            @click="addCustomGenotype"
-          >
-            保存基因型
-          </button>
         </div>
 
         <label class="block">
@@ -111,47 +105,41 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue" // ⚠️ 新增了 computed
-import { useMiceStore } from "@/stores/mice"
+import { ref, onMounted, computed } from "vue";
+import { useMiceStore } from "@/stores/mice";
 
 const props = defineProps({
   cageId: { type: [Number, String], default: null }
-})
-const emit = defineEmits(["close"])
-const miceStore = useMiceStore()
+});
+const emit = defineEmits(["close"]);
+const miceStore = useMiceStore();
 
-// 表单字段
-const mouseName = ref("")
-const cageIdValue = ref(props.cageId || "")
-const genotype = ref("C57")
-// const genotypeOptions = ref(["C57", "5×FAD"]) // ⚠️ 删除了写死的选项
-const customGenotype = ref("")
-const sex = ref("♂")
-const birthDate = ref("")
-const group = ref("未分组")
-const notes = ref("")
+const mouseName = ref("");
+const cageIdValue = ref(props.cageId || "");
+const genotype = ref("C57");
+const customGenotype = ref("");
+const sex = ref("♂");
+const birthDate = ref("");
+const group = ref("未分组");
+const notes = ref("");
 
-// ✅ 新增：通过 computed 获取 Pinia store 中的所有基因型
-const allGenotypes = computed(() => {
+// ⚡ 优化：通过 computed 属性获取 Pinia store 中的所有基因型
+const allGenotypeOptions = computed(() => {
   const genotypes = miceStore.allGenotypes;
-  // 添加默认基因型
-  if (!genotypes.includes('C57')) {
-    genotypes.push('C57');
-  }
-  return genotypes;
+  // 确保选项列表包含默认的 'C57'
+  return genotypes.length ? genotypes : ['C57'];
 });
 
 onMounted(() => {
   if (props.cageId) {
     cageIdValue.value = props.cageId;
   }
-  // ⚠️ 修复：默认基因型应在 computed 中处理
-  if (!allGenotypes.value.includes(genotype.value)) {
-    genotype.value = allGenotypes.value[0] || 'C57';
+  // ⚡ 修复：确保默认基因型有效
+  if (!allGenotypeOptions.value.includes(genotype.value)) {
+    genotype.value = allGenotypeOptions.value[0] || '';
   }
 });
 
-// ✅ 核心修改：更新 autoSetSex 函数
 function autoSetSex() {
   const firstChar = mouseName.value?.trim().toUpperCase()[0];
   if (firstChar === "M" || firstChar === "A") {
@@ -161,43 +149,29 @@ function autoSetSex() {
   }
 }
 
-// 选择“自定义”时，清空输入框
-function checkCustomGenotype() {
-  if (genotype.value === "custom") {
-    customGenotype.value = ""
-  }
-}
+// ⚡ 简化：移除 checkCustomGenotype
+// 移除 addCustomGenotype
 
-// 添加自定义基因型
-function addCustomGenotype() {
-  if (!customGenotype.value.trim()) {
-    alert("请输入自定义基因型")
-    return
-  }
-  if (!genotypeOptions.value.includes(customGenotype.value)) {
-    genotypeOptions.value.push(customGenotype.value)
-  }
-  genotype.value = customGenotype.value
-  customGenotype.value = ""
-}
-
-// 保存
 function handleAddMouse() {
   if (!mouseName.value.trim()) {
-    alert("请输入编号")
-    return
+    alert("请输入编号");
+    return;
   }
   if (!cageIdValue.value) {
-    alert("请选择笼子")
-    return
+    alert("请选择笼子");
+    return;
   }
 
-  // ✅ 修复：当选择手动输入时，使用 customGenotype 的值
-  const finalGenotype = genotype.value === 'custom' ? customGenotype.value : genotype.value;
+  // ⚡ 修复：当选择“自定义”时，使用 customGenotype 的值
+  const finalGenotype = genotype.value === 'custom' ? customGenotype.value.trim() : genotype.value;
+  if (!finalGenotype) {
+    alert('请选择或输入基因型');
+    return;
+  }
   
   miceStore.addMouse({
     name: mouseName.value,
-    cageId: cageIdValue.value, // ⚠️ 修复：移除 Number() 转换
+    cageId: cageIdValue.value,
     genotype: finalGenotype,
     sex: sex.value,
     birthDate: birthDate.value,

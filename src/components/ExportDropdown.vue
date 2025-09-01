@@ -49,39 +49,14 @@ function toggleDropdown() {
 }
 
 function download(type) {
-  // ✅ 核心改动：在导出前处理数据
-  const miceWithShortIds = props.mice.map((mouse, index) => ({
-    ...mouse,
-    id: `M-${index + 1}`, // 生成一个简短的 ID
-    originalId: mouse.id  // 保留原始 ID 以备追溯
-  }));
-
-  const cagesWithShortIds = props.cages.map((cage, index) => ({
-    ...cage,
-    id: `C-${index + 1}`, // 生成一个简短的 ID
-    originalId: cage.id   // 保留原始 ID
-  }));
-  
-  // 更新老鼠的 cageId 以匹配新的笼位短 ID
-  const finalMice = miceWithShortIds.map(mouse => {
-    const originalCage = props.cages.find(c => c.id === mouse.cageId);
-    if (originalCage) {
-      const newCage = cagesWithShortIds.find(c => c.originalId === originalCage.id);
-      if (newCage) {
-        mouse.cageId = newCage.id;
-      }
-    }
-    return mouse;
-  });
-
+  // ⚡ 修复：直接使用原始数据，让 export.js 来处理映射
   if (type === "json") {
-    exportToJSON(finalMice, cagesWithShortIds);
+    exportToJSON(props.mice, props.cages);
   } else if (type === "csv") {
-    exportToCSV(finalMice, cagesWithShortIds);
+    exportToCSV(props.mice, props.cages);
   } else if (type === "excel") {
-    exportToExcel(finalMice, cagesWithShortIds);
+    exportToExcel(props.mice, props.cages);
   }
   show.value = false;
 }
-
 </script>

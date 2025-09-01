@@ -6,15 +6,30 @@ src/
  │   ├─ AddMouseModal.vue     # 添加老鼠
  │   ├─ AddCageModal.vue      # 添加笼位
  │   ├─ MoveMouseModal.vue    # 移动老鼠（记录）
- │   ├─ BreedingModal.vue     # 繁育记录
+ │   ├─ BreedingModal.vue     # 繁育功能
+│   ├─ BreedingRecords.vue     # 繁育记录
+│   ├─CageCard.vue
+│   ├─CageList.vue
+│   ├─DeadMouseListModal.vue
+│   ├─Login.vue
+│   ├─MouseListModal.vue
+│   ├─MoveMouseModal.vue
+│   ├─PedigreeView.vue
+│   ├─RatCageList.vue
  │   └─ ExportDropdown.vue    # 导出功能（JSON/CSV/Excel）
  │
- ├─ store/
+ │
+ ├─ stores/
  │   └─ mice.js               # Pinia，统一数据 & 动作
- │
+ │   └─ user.js
+│   └─counter.ts
  ├─ utils/
- │   └─ export.js             # 导出工具函数
- │
+ │   └─ export.js
+│   └─ import.js           # 导出工具函数
+│   └─idGenerator.js
+│   └─leancloud.js
+ ├─ router/
+ │   └─ index.ts             # 
  ├─ App.vue
  └─ main.ts
 👌 好，那我们就按照一个最自然的开发顺序来走，避免返工。建议从 **数据层 → 组件层 → 功能层** 的思路开始：

@@ -1,10 +1,11 @@
 <template>
-  <div class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+  <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-lg w-[600px] max-h-[90vh] overflow-y-auto p-6 relative">
       <button class="absolute top-2 right-2 text-gray-500 hover:text-gray-800" @click="emit('close')">✕</button>
 
       <h2 class="text-2xl font-bold mb-4">🐭 {{ localMouse.name }} 详情</h2>
 
+      <!-- 基本信息 -->
       <div class="space-y-3">
         <label class="block">
           <span class="text-gray-700">编号</span>
@@ -37,7 +38,7 @@
             v-model="manualGenotype"
             type="text"
             placeholder="请输入新的基因型"
-            class="mt-2 block w-full border rounded-md"
+            class="mt-2 block w-full border rounded-md px-3 py-2"
           />
         </label>
 
@@ -69,6 +70,7 @@
 
       <hr class="my-4" />
 
+      <!-- 配偶：读取 spouseIds（静态关系），跨笼显示“已分笼”，死亡显示“已死亡” -->
       <div>
         <h3 class="text-lg font-semibold mb-2">❤️ 配偶</h3>
         <div v-if="spouses.length">
@@ -77,16 +79,20 @@
               v-for="s in spouses"
               :key="s.id"
               class="cursor-pointer text-blue-600 hover:underline"
-              @click="openOtherDetail(s)"
+              @click="openOtherDetail(s.id)"
             >
-              {{ s.name }} ({{ s.sex }})
+              {{ s.name }}
+              ({{ s.sex === 'male' ? '♂' : s.sex === 'female' ? '♀' : '？' }})
+              <span v-if="s.__dead" class="ml-1 text-xs text-gray-500">（已死亡）</span>
+              <span v-else-if="s.cageId !== localMouse.cageId" class="ml-1 text-xs text-gray-500">（已分笼）</span>
             </li>
           </ul>
         </div>
         <p v-else class="text-gray-500">暂无</p>
       </div>
 
-      <div>
+      <!-- 子女：读取 childrenIds（静态关系） -->
+      <div class="mt-3">
         <h3 class="text-lg font-semibold mb-2">👶 子女</h3>
         <div v-if="children.length">
           <ul class="list-disc list-inside">
@@ -94,42 +100,57 @@
               v-for="c in children"
               :key="c.id"
               class="cursor-pointer text-green-600 hover:underline"
-              @click="openOtherDetail(c)"
+              @click="openOtherDetail(c.id)"
             >
-              {{ c.name }} ({{ c.sex }})
+              {{ c.name }}
+              ({{ c.sex === 'male' ? '♂' : c.sex === 'female' ? '♀' : '？' }})
+              <span v-if="c.__dead" class="ml-1 text-xs text-gray-500">（已死亡）</span>
             </li>
           </ul>
         </div>
         <p v-else class="text-gray-500">暂无</p>
       </div>
 
-      <div>
+      <!-- 父母：读取 fatherId/motherId（静态关系） -->
+      <div class="mt-3">
         <h3 class="text-lg font-semibold mb-2">👨‍👩‍👧 父母</h3>
         <div v-if="father || mother">
-          <p v-if="father" class="cursor-pointer text-purple-600 hover:underline" @click="openOtherDetail(father)">
+          <p
+            v-if="father"
+            class="cursor-pointer text-purple-600 hover:underline"
+            @click="openOtherDetail(father.id)"
+          >
             父：{{ father.name }} (♂)
+            <span v-if="father.__dead" class="ml-1 text-xs text-gray-500">（已死亡）</span>
           </p>
-          <p v-if="mother" class="cursor-pointer text-pink-600 hover:underline" @click="openOtherDetail(mother)">
+          <p
+            v-if="mother"
+            class="cursor-pointer text-pink-600 hover:underline"
+            @click="openOtherDetail(mother.id)"
+          >
             母：{{ mother.name }} (♀)
+            <span v-if="mother.__dead" class="ml-1 text-xs text-gray-500">（已死亡）</span>
           </p>
         </div>
         <p v-else class="text-gray-500">暂无</p>
       </div>
 
-<!-- 放在保存/取消下面，记录死亡上面 -->
-<div class="mt-2 flex justify-end">
-  <button
-    class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
-    @click="emit('open-pedigree', localMouse)"
-  >
-    🧬 查看族谱
-  </button>
-</div>
+      <!-- 查看族谱（触发外层） -->
+      <div class="mt-2 flex justify-end">
+        <button
+          class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+          @click="emit('open-pedigree', localMouse)"
+        >
+          🧬 查看族谱
+        </button>
+      </div>
 
+      <!-- 操作 -->
       <div class="mt-4 flex justify-end gap-2">
         <button class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" @click="emit('close')">取消</button>
         <button class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600" @click="saveChanges">保存</button>
       </div>
+
       <div class="mt-2 flex justify-end">
         <button class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600" @click="handleRecordDeath">
           💀 记录死亡
@@ -140,106 +161,94 @@
 </template>
 
 <script setup>
-import { reactive, computed, ref } from "vue";
+import { reactive, computed, ref, toRaw } from "vue";
 import { useMiceStore } from "@/stores/mice";
-import { toRaw } from "vue";
 
 const props = defineProps({
   mouse: { type: Object, required: true },
 });
-const emit = defineEmits(["close", "open-other", "open-pedigree", "record-death"]);
-const miceStore = useMiceStore();
+const emit = defineEmits(["close", "open-mouse", "open-pedigree"]);
 
+const miceStore = useMiceStore();
 const statusOptions = ["怀孕", "哺乳", "幼鼠", "其他"];
 
-const localMouse = reactive({ statuses: [], ...toRaw(props.mouse) });
-
-const findMouseById = (id) => miceStore.mice.find(m => m.id === id) || miceStore.deadMice.find(m => m.id === id);
-
-const allGenotypes = computed(() => {
-  const genotypes = miceStore.mice.map(m => m.genotype).filter(g => g);
-  return [...new Set(genotypes)];
+// 用本地副本编辑，避免直接改 props
+const localMouse = reactive({
+  statuses: [],
+  spouseIds: [],
+  childrenIds: [],
+  fatherId: null,
+  motherId: null,
+  ...toRaw(props.mouse),
 });
 
+// 便捷：通过 id 在活体或死亡列表里找鼠；并标记 __dead
+const findMouseById = (id) => {
+  const live = miceStore.mice.find((m) => m.id === id);
+  if (live) return live;
+  const dead = miceStore.deadMice.find((m) => m.id === id);
+  return dead ? { ...dead, __dead: true } : null;
+};
+
+// 基因型选择/输入
+const allGenotypes = computed(() => {
+  const genotypes = miceStore.mice.map((m) => m.genotype).filter(Boolean);
+  return [...new Set(genotypes)];
+});
 const selectedGenotype = ref(localMouse.genotype || "");
 const manualGenotype = ref("");
 
+// —— 配偶/子女/父母（静态关系读取）——
 const spouses = computed(() => {
-  if (!props.mouse.spouseIds) return [];
-  return props.mouse.spouseIds.map(findMouseById).filter(Boolean);
+  const ids = Array.isArray(props.mouse.spouseIds) ? props.mouse.spouseIds : [];
+  return ids.map(findMouseById).filter(Boolean);
 });
-
 const children = computed(() => {
-  if (!props.mouse.childrenIds) return [];
-  return props.mouse.childrenIds.map(findMouseById).filter(Boolean);
+  const ids = Array.isArray(props.mouse.childrenIds) ? props.mouse.childrenIds : [];
+  return ids.map(findMouseById).filter(Boolean);
 });
+const father = computed(() => (props.mouse.fatherId ? findMouseById(props.mouse.fatherId) : null));
+const mother = computed(() => (props.mouse.motherId ? findMouseById(props.mouse.motherId) : null));
 
-const father = computed(() => props.mouse.fatherId ? findMouseById(props.mouse.fatherId) : null);
-const mother = computed(() => props.mouse.motherId ? findMouseById(props.mouse.motherId) : null);
-
+// 自动根据编号首字母设置性别（可选）
 function autoSetSex() {
-  const firstChar = localMouse.name?.trim().toUpperCase()[0];
-  if (firstChar === "M" || firstChar === "A") {
-    localMouse.sex = "male";
-  } else if (firstChar === "F" || firstChar === "B") {
-    localMouse.sex = "female";
-  }
+  const first = localMouse.name?.trim().toUpperCase()[0];
+  if (first === "M" || first === "A") localMouse.sex = "male";
+  else if (first === "F" || first === "B") localMouse.sex = "female";
 }
 
+// 保存：用 store 的 updateMouse（保留日志/规范化）
 function saveChanges() {
-  if (selectedGenotype.value === 'manual_input') {
-    localMouse.genotype = manualGenotype.value;
+  if (selectedGenotype.value === "manual_input") {
+    if (!manualGenotype.value.trim()) {
+      alert("请输入新的基因型");
+      return;
+    }
+    localMouse.genotype = manualGenotype.value.trim();
   } else {
     localMouse.genotype = selectedGenotype.value;
   }
-  
-  const index = miceStore.mice.findIndex(m => m.id === props.mouse.id);
-  if (index !== -1) {
-    miceStore.mice[index] = { ...toRaw(localMouse) };
-  }
-  
-  miceStore.addRecord(`更新老鼠 ${localMouse.name} 信息`);
+
+  miceStore.updateMouse(props.mouse.id, toRaw(localMouse));
   emit("close");
 }
 
-function openOtherDetail(mouse) {
-  emit("open-other", mouse);
+// 打开另一只老鼠详情（按 id）
+function openOtherDetail(id) {
+  if (!id) return;
+  emit("open-mouse", id);
 }
 
+// 记录死亡：直接调用 store（不解除任何配偶/亲属关系）
 function handleRecordDeath() {
   const cause = prompt("请输入死亡原因:");
-  if (cause === null) {
+  if (cause === null) return;
+  const c = cause.trim();
+  if (!c) {
+    alert("死亡原因不能为空");
     return;
   }
-  if (cause.trim() === '') {
-    alert("死亡原因不能为空，请重新输入或点击取消。");
-    return;
-  }
-  
-  emit('record-death', localMouse.id, cause);
+  miceStore.recordDeath(localMouse.id, c);
   emit("close");
 }
 </script>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 50;
-}
-.modal-content {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  width: 90%;
-  max-width: 400px;
-}
-</style>

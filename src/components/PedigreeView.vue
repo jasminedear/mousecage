@@ -3,86 +3,113 @@
     <div class="bg-white rounded-lg shadow-lg w-[900px] max-h-[90vh] overflow-y-auto p-6 relative">
       <button class="absolute top-2 right-2 text-gray-500 hover:text-gray-800" @click="$emit('close')">✕</button>
       
-      <h2 class="text-2xl font-bold mb-8 text-center text-gray-800">🐭 {{ mouse.name }} 的族谱</h2>
+      <h2 class="text-2xl font-bold mb-8 text-center text-gray-800">🐭 {{ currentMouse?.name || '未知' }} 的族谱</h2>
 
       <div class="pedigree-chart">
-        
-        <div v-if="parents.length > 0" class="pedigree-row justify-center mb-12">
-          <div v-for="p in parents" :key="p.id" class="pedigree-node parent-node">
-            <div 
-              :class="[p.sex === '♂' ? 'bg-blue-100' : 'bg-red-100', 'pedigree-card p-3 rounded-full border shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
-              @click="$emit('open-other', p)"
-            >
-              <p class="text-xl">🐭</p>
-              <p class="font-bold text-sm">{{ p.name }} <span class="text-xs">{{ p.sex === '♂' ? '♂' : '♀' }}</span></p>
+        <div class="pedigree-row justify-center mb-12">
+          <template v-if="parents.length > 0">
+            <div v-for="p in parents" :key="p.id" class="pedigree-node parent-node">
+              <div 
+                :class="[sexBgClass(p), 'pedigree-card p-3 rounded-full border shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
+                @click="$emit('open-other', p)"
+                :title="personTitle(p)"
+              >
+                <p class="font-bold text-sm">
+                  {{ p.name }} 
+                  <span class="text-xs">{{ sexSymbol(p) }}</span>
+                  <span v-if="p.__dead" class="text-xs text-gray-500">（已死亡）</span>
+                </p>
+                <p v-if="p.genotype" class="text-xs text-gray-500">{{ p.genotype }}</p>
+              </div>
             </div>
-          </div>
+          </template>
+          <p v-else class="text-center text-gray-400">无父母记录</p>
         </div>
-        <p v-else class="text-center text-gray-400 mb-12">无父母记录</p>
 
         <div class="pedigree-row main-mouse-row justify-between items-center mb-12">
-          
           <div class="w-1/3 flex flex-col items-center">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">配偶 ({{ spouses.length }})</h3>
             <template v-if="spouses.length > 0">
-              <h3 class="text-lg font-semibold mb-3 text-gray-700">配偶 ({{ spouses.length }})</h3>
               <div class="flex flex-wrap gap-4 justify-center">
                 <div v-for="s in spouses" :key="s.id" class="pedigree-node">
                   <div 
-                    :class="[s.sex === '♂' ? 'bg-blue-100' : 'bg-red-100', 'pedigree-card p-3 rounded-full border-2 border-pink-500 shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
+                    :class="[sexBgClass(s), 'pedigree-card p-3 rounded-full border-2 border-pink-500 shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
                     @click="$emit('open-other', s)"
+                    :title="personTitle(s)"
                   >
-                    <p class="text-xl">❤️</p>
-                    <p class="font-bold text-sm">{{ s.name }} <span class="text-xs">{{ s.sex === '♂' ? '♂' : '♀' }}</span></p>
+                    <p class="font-bold text-sm">
+                      {{ s.name }} 
+                      <span class="text-xs">{{ sexSymbol(s) }}</span>
+                      <span v-if="s.__dead" class="text-xs text-gray-500">（已死亡）</span>
+                    </p>
+                    <p v-if="s.genotype" class="text-xs text-gray-500">{{ s.genotype }}</p>
                   </div>
                 </div>
               </div>
             </template>
-            <p v-else class="text-center text-gray-400 text-sm">无配偶记录</p>
+            <p v-else class="text-center text-gray-400 text-sm">暂无</p>
           </div>
 
           <div class="w-1/3 flex flex-col items-center">
             <div 
               class="pedigree-card p-4 rounded-lg bg-white border-2 border-purple-500 shadow-xl transform scale-110"
+              :title="personTitle(currentMouse)"
             >
-              <p class="font-bold text-lg">{{ mouse.name }} <span class="text-sm">{{ mouse.sex === '♂' ? '♂' : '♀' }}</span></p>
-              <p class="text-sm text-gray-500">{{ mouse.genotype }}</p>
+              <p class="font-bold text-lg">
+                {{ currentMouse?.name || '未知' }}
+                <span class="text-sm">{{ sexSymbol(currentMouse) }}</span>
+                <span v-if="currentMouse?.__dead" class="text-xs text-gray-500">（已死亡）</span>
+              </p>
+              <p class="text-sm text-gray-500">{{ currentMouse?.genotype || '' }}</p>
             </div>
           </div>
           
           <div class="w-1/3 flex flex-col items-center">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">兄弟姐妹 ({{ siblings.length }})</h3>
             <template v-if="siblings.length > 0">
-              <h3 class="text-lg font-semibold mb-3 text-gray-700">兄弟姐妹 ({{ siblings.length }})</h3>
               <div class="flex flex-wrap gap-4 justify-center">
                 <div v-for="s in siblings" :key="s.id" class="pedigree-node">
                   <div 
-                    :class="[s.sex === '♂' ? 'bg-blue-100' : 'bg-red-100', 'pedigree-card p-3 rounded-full border shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
+                    :class="[sexBgClass(s), 'pedigree-card p-3 rounded-full border shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
                     @click="$emit('open-other', s)"
+                    :title="personTitle(s)"
                   >
-                    <p class="font-bold text-sm">{{ s.name }} <span class="text-xs">{{ s.sex === '♂' ? '♂' : '♀' }}</span></p>
-                    <p class="text-xs text-gray-500">{{ s.genotype }}</p>
+                    <p class="font-bold text-sm">
+                      {{ s.name }} 
+                      <span class="text-xs">{{ sexSymbol(s) }}</span>
+                      <span v-if="s.__dead" class="text-xs text-gray-500">（已死亡）</span>
+                    </p>
+                    <p v-if="s.genotype" class="text-xs text-gray-500">{{ s.genotype }}</p>
                   </div>
                 </div>
               </div>
             </template>
-            <p v-else class="text-center text-gray-400 text-sm">无兄弟姐妹记录</p>
+            <p v-else class="text-center text-gray-400 text-sm">暂无</p>
           </div>
         </div>
 
-        <div v-if="children.length > 0" class="pedigree-row children-row">
+        <div class="pedigree-row children-row">
           <h3 class="text-lg font-semibold my-4 text-gray-700">👶 子女 ({{ children.length }})</h3>
-          <div class="flex flex-wrap gap-4 justify-center">
-            <div v-for="c in children" :key="c.id" class="pedigree-node">
-              <div 
-                :class="[c.sex === '♂' ? 'bg-blue-100' : 'bg-red-100', 'pedigree-card p-3 rounded-full border shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
-                @click="$emit('open-other', c)"
-              >
-                <p class="font-bold text-sm">{{ c.name }} <span class="text-xs">{{ c.sex === '♂' ? '♂' : '♀' }}</span></p>
-                <p class="text-xs text-gray-500">{{ c.genotype }}</p>
+          <template v-if="children.length > 0">
+            <div class="flex flex-wrap gap-4 justify-center">
+              <div v-for="c in children" :key="c.id" class="pedigree-node">
+                <div 
+                  :class="[sexBgClass(c), 'pedigree-card p-3 rounded-full border shadow-md cursor-pointer hover:bg-gray-200 transition-transform transform hover:scale-105 duration-200']"
+                  @click="$emit('open-other', c)"
+                  :title="personTitle(c)"
+                >
+                  <p class="font-bold text-sm">
+                    {{ c.name }} 
+                    <span class="text-xs">{{ sexSymbol(c) }}</span>
+                    <span v-if="c.__dead" class="text-xs text-gray-500">（已死亡）</span>
+                  </p>
+                  <p v-if="c.genotype" class="text-xs text-gray-500">{{ c.genotype }}</p>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
+          <p v-else class="text-center text-gray-400">暂无</p>
         </div>
-        <p v-else class="text-center text-gray-400 my-4">暂无子女记录</p>
       </div>
     </div>
   </div>
@@ -98,44 +125,86 @@ const props = defineProps({
 const emit = defineEmits(['close', 'open-other']);
 const miceStore = useMiceStore();
 
-const findMouseById = (id) => miceStore.mice.find(m => m.id === id);
+/**
+ * 确保始终以 store 最新对象为准，避免 props 旧快照
+ * 1. 从活体列表找
+ * 2. 如果没找到，从死亡列表找，并标记死亡状态
+ * 3. 仍未找到则退回 props 传入的对象
+ */
+const currentMouse = computed(() => {
+  const id = String(props.mouse.id);
+  const live = miceStore.mice.find(m => String(m.id) === id);
+  if (live) return live;
+  
+  const dead = miceStore.deadMice.find(m => String(m.id) === id);
+  return dead ? { ...dead, __dead: true } : props.mouse;
+});
 
+/** 在活体或死亡里找人；并标记 __dead；统一字符串化 id */
+const findMouseById = (id) => {
+  const sid = String(id);
+  const live = miceStore.mice.find(m => String(m.id) === sid);
+  if (live) return live;
+  const dead = miceStore.deadMice.find(m => String(m.id) === sid);
+  return dead ? { ...dead, __dead: true } : null;
+};
+
+/** 性别工具：兼容 'male'/'female' 和 '♂'/'♀' */
+const normSex = (m) => {
+  const sx = m?.sex;
+  if (sx === 'male' || sx === '♂') return 'male';
+  if (sx === 'female' || sx === '♀') return 'female';
+  return 'unknown';
+};
+const sexSymbol = (m) => (normSex(m) === 'male' ? '♂' : normSex(m) === 'female' ? '♀' : '？');
+const sexBgClass = (m) => (normSex(m) === 'male' ? 'bg-blue-100' : normSex(m) === 'female' ? 'bg-red-100' : 'bg-gray-100');
+const personTitle = (m) => `${m?.name ?? '未知'} ${sexSymbol(m)}${m?.genotype ? ` / ${m.genotype}` : ''}${m?.__dead ? '（已死亡）' : ''}`;
+
+/** 父母（静态） */
 const parents = computed(() => {
-  const parentsList = [];
-  if (props.mouse.fatherId) {
-    const father = findMouseById(props.mouse.fatherId);
-    if (father) parentsList.push(father);
+  const p = [];
+  const fId = currentMouse.value?.fatherId;
+  const mId = currentMouse.value?.motherId;
+  if (fId != null) {
+    const f = findMouseById(fId);
+    if (f) p.push(f);
   }
-  if (props.mouse.motherId) {
-    const mother = findMouseById(props.mouse.motherId);
-    if (mother) parentsList.push(mother);
+  if (mId != null) {
+    const m = findMouseById(mId);
+    if (m) p.push(m);
   }
-  return parentsList;
+  return p;
 });
 
+/** 配偶（静态历史） */
 const spouses = computed(() => {
-  if (!props.mouse.spouseIds) return [];
-  return props.mouse.spouseIds.map(findMouseById).filter(Boolean);
+  const ids = Array.isArray(currentMouse.value?.spouseIds) ? currentMouse.value.spouseIds : [];
+  return ids.map(findMouseById).filter(Boolean);
 });
 
+/** 子女（静态历史） */
 const children = computed(() => {
-  if (!props.mouse.childrenIds) return [];
-  return props.mouse.childrenIds.map(findMouseById).filter(Boolean);
+  const ids = Array.isArray(currentMouse.value?.childrenIds) ? currentMouse.value.childrenIds : [];
+  return ids.map(findMouseById).filter(Boolean);
 });
 
-// 计算兄弟姐妹
+/** 兄弟姐妹：调用 store 的 getter */
 const siblings = computed(() => {
-  const currentMouseId = props.mouse.id;
-  if (!props.mouse.fatherId && !props.mouse.motherId) {
-    return [];
-  }
-  return miceStore.mice.filter(m => 
-    m.id !== currentMouseId &&
-    m.fatherId === props.mouse.fatherId &&
-    m.motherId === props.mouse.motherId
-  );
-});
+  const me = currentMouse.value;
+  if (!me) return [];
+  const myId = String(me.id);
+  const fId = me.fatherId != null ? String(me.fatherId) : null;
+  const mId = me.motherId != null ? String(me.motherId) : null;
+  if (!fId && !mId) return [];
 
+  const all = [...miceStore.mice, ...miceStore.deadMice.map(x => ({ ...x, __dead: true }))];
+  return all.filter(x => {
+    if (String(x.id) === myId) return false;
+    const xf = x.fatherId != null ? String(x.fatherId) : null;
+    const xm = x.motherId != null ? String(x.motherId) : null;
+    return xf === fId && xm === mId;
+  });
+});
 </script>
 
 <style scoped>
@@ -159,16 +228,14 @@ const siblings = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem; /* 增加整体间距 */
+  gap: 1.5rem;
 }
-
 .pedigree-row {
   display: flex;
   justify-content: center;
   align-items: center;
   width: 100%;
 }
-
 .pedigree-node {
   min-width: 100px;
   text-align: center;
@@ -177,38 +244,9 @@ const siblings = computed(() => {
   align-items: center;
   justify-content: center;
 }
-
 .pedigree-card {
   min-width: 120px;
   text-align: center;
-}
-
-/* 父母层的特殊样式 */
-.parents-row {
-  margin-bottom: 0; 
-  padding-bottom: 1.5rem;
-}
-.parents-row + .main-mouse-row::before {
-  content: '';
-  position: absolute;
-  top: -1.5rem;
-  left: 50%;
-  width: 2px;
-  height: 1.5rem;
-  background-color: #d1d5db;
-  transform: translateX(-50%);
-}
-
-/* 子女层的特殊样式 */
-.children-row {
-  flex-direction: column;
-}
-
-.children-row::before {
-  content: '';
-  width: 2px;
-  height: 1.5rem;
-  background-color: #d1d5db;
 }
 
 /* 主体老鼠 & 配偶 & 兄弟姐妹层 */
@@ -217,7 +255,6 @@ const siblings = computed(() => {
   justify-content: space-between;
   gap: 1rem;
 }
-
 .main-mouse-row::before {
   content: '';
   width: 100%;
@@ -229,8 +266,7 @@ const siblings = computed(() => {
   transform: translateY(-50%);
   z-index: 0;
 }
-
 .main-mouse-row > * {
-  z-index: 1; /* 确保卡片在连接线上方 */
+  z-index: 1;
 }
 </style>
