@@ -83,21 +83,22 @@ import { useMiceStore } from "@/stores/mice"
 
 const emit = defineEmits(["close"])
 const miceStore = useMiceStore()
+const displaySex = s => s === 'male' ? '♂' : s === 'female' ? '♀' : (s || '')
 
 // 存储输入的新生小鼠数量
 const newPupCount = reactive({})
 
 // 找所有可能的配偶组合（支持多妻多夫）
 function getBreedingPairs(cageId) {
-  const cageMice = miceStore.mice.filter(m => m.cageId === cageId)
+  const cageMice = miceStore.normalizedMice.filter(m => m.cageId === cageId)
   const today = new Date()
   const adults = cageMice.filter(m => {
     if (!m.birthDate) return false
     const ageMonths = (today - new Date(m.birthDate)) / (1000 * 60 * 60 * 24 * 30)
     return ageMonths >= 2
   })
-  const males = adults.filter(m => m.sex === "♂")
-  const females = adults.filter(m => m.sex === "♀")
+  const males = adults.filter(m => m.sex === "male" || m.sex === "♂")
+  const females = adults.filter(m => m.sex === "female" || m.sex === "♀")
 
   const pairs = []
   males.forEach(male => {
@@ -159,7 +160,7 @@ function addOffspring(pair) {
     const pup = {
       name: `${pair.female.name}-P${i}`,
       cageId,
-      sex: i % 2 === 0 ? "♂" : "♀",
+      sex: i % 2 === 0 ? "male" : "female",
       genotype: "未知",
       birthDate,
       group: "未分组",

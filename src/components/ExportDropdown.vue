@@ -26,9 +26,9 @@
       <button
        class="block w-full px-4 py-2 text-left hover:bg-gray-100"
        @click="download('excel')"
-     >
+      >
        📊 Excel
-</button>
+      </button>
     </div>
   </div>
 </template>
@@ -49,16 +49,39 @@ function toggleDropdown() {
 }
 
 function download(type) {
-  console.log("点击导出：", type)
+  // ✅ 核心改动：在导出前处理数据
+  const miceWithShortIds = props.mice.map((mouse, index) => ({
+    ...mouse,
+    id: `M-${index + 1}`, // 生成一个简短的 ID
+    originalId: mouse.id  // 保留原始 ID 以备追溯
+  }));
+
+  const cagesWithShortIds = props.cages.map((cage, index) => ({
+    ...cage,
+    id: `C-${index + 1}`, // 生成一个简短的 ID
+    originalId: cage.id   // 保留原始 ID
+  }));
+  
+  // 更新老鼠的 cageId 以匹配新的笼位短 ID
+  const finalMice = miceWithShortIds.map(mouse => {
+    const originalCage = props.cages.find(c => c.id === mouse.cageId);
+    if (originalCage) {
+      const newCage = cagesWithShortIds.find(c => c.originalId === originalCage.id);
+      if (newCage) {
+        mouse.cageId = newCage.id;
+      }
+    }
+    return mouse;
+  });
+
   if (type === "json") {
-    exportToJSON(props.mice, props.cages)
+    exportToJSON(finalMice, cagesWithShortIds);
   } else if (type === "csv") {
-    exportToCSV(props.mice, props.cages)
+    exportToCSV(finalMice, cagesWithShortIds);
   } else if (type === "excel") {
-    console.log("调用 Excel 导出函数")   // ✅ 看看能不能打印
-    exportToExcel(props.mice, props.cages)
+    exportToExcel(finalMice, cagesWithShortIds);
   }
-  show.value = false
+  show.value = false;
 }
 
 </script>

@@ -1,110 +1,88 @@
-// src/store/mice.js
-import { defineStore } from 'pinia'
+import { defineStore } from "pinia"
 
-export const useMiceStore = defineStore('mice', {
+export const useMiceStore = defineStore("mice", {
   state: () => ({
-    mice: [],      // 老鼠列表
-    cages: [],     // 笼位列表
-    records: []    // 操作记录（移动、繁育等）
+    cages: [],       // 笼子
+    mice: [],        // 老鼠
+    records: [],     // 操作日志
+    breeding: {}     // 保存所有配对的繁育信息
   }),
 
-  getters: {
-    // 按笼位获取老鼠
-    getMiceByCage: (state) => {
-      return (cageId) => state.mice.filter(mouse => mouse.cageId === cageId)
-    },
-    // 搜索老鼠
-    searchMice: (state) => {
-      return (keyword) =>
-        state.mice.filter(m =>
-          m.name.includes(keyword) || (m.genotype && m.genotype.includes(keyword))
-        )
-    }
-  },
-
   actions: {
-    // 添加笼位
+    // 更新繁育信息
+    updateBreeding(pairKey, data) {
+      if (!this.breeding[pairKey]) {
+        this.breeding[pairKey] = {}
+      }
+      this.breeding[pairKey] = { ...this.breeding[pairKey], ...data }
+    },
+
+    // 添加笼位：自动推算所属排（如 A-01 → A）
     addCage(cage) {
-      this.cages.push({
+      const row = cage.name.split("-")[0]
+      const newCage = {
         id: Date.now(),
-        name: cage.name || `Cage-${this.cages.length + 1}`,
-        ...cage
-      })
+        name: cage.name,
+        row
+      }
+      this.cages.push(newCage)
+      this.addRecord(`添加笼位 ${cage.name} (所属 ${row}排)`)
+      console.log("当前 cages:", this.cages)
     },
 
     // 添加老鼠
     addMouse(mouse) {
       const newMouse = {
         id: Date.now(),
-        name: mouse.name || `Mouse-${this.mice.length + 1}`,
-        cageId: mouse.cageId || null,
-        genotype: mouse.genotype || 'C57',
-        sex: mouse.sex || '未知',
-        birthDate: mouse.birthDate || null,
-        mateId: null,   // 配偶
-        children: [],   // 子女
-        notes: '',
-        status: 'normal', // 状态：normal/breeding/sick/dead
+        // 添加默认状态，方便后续逻辑判断
+        state: 'normal',
         ...mouse
       }
+
+      // 转换性别数据，统一为英文单词
+      if (newMouse.sex === '♂') {
+        newMouse.sex = 'male'
+      } else if (newMouse.sex === '♀') {
+        newMouse.sex = 'female'
+      }
+
       this.mice.push(newMouse)
-      this.addRecord(`添加老鼠 ${newMouse.name}`)
+      this.addRecord(`添加老鼠 ${newMouse.name || "未命名"} 到笼位 ${this.getCageName(newMouse.cageId)}`)
     },
 
-    // 移动老鼠
-    moveMouse(mouseId, newCageId) {
-      const mouse = this.mice.find(m => m.id === mouseId)
-      if (mouse) {
-        const oldCage = mouse.cageId
-        mouse.cageId = newCageId
-        this.addRecord(`老鼠 ${mouse.name} 从笼位 ${oldCage} 移动到 ${newCageId}`)
-      }
+    // 重命名一排
+    renameRow(oldName, newName) {
+      this.cages.forEach((cage) => {
+        if (cage.row === oldName) {
+          cage.row = newName
+        }
+      })
+      this.addRecord(`修改排名 ${oldName} → ${newName}`)
     },
 
-    // 更新老鼠信息
-    updateMouse(mouseId, updates) {
-      const mouse = this.mice.find(m => m.id === mouseId)
-      if (mouse) {
-        Object.assign(mouse, updates)
-        this.addRecord(`更新老鼠 ${mouse.name} 信息`)
-      }
+    // 删除一整排
+    deleteRow(rowName) {
+      const cagesToDelete = this.cages.filter((c) => c.row === rowName).map((c) => c.id)
+      this.cages = this.cages.filter((cage) => cage.row !== rowName)
+      this.mice = this.mice.filter((mouse) => !cagesToDelete.includes(mouse.cageId))
+      this.addRecord(`删除 ${rowName} 排及其笼位和老鼠`)
     },
 
-    // 繁育（生成子代）
-    breed(parent1Id, parent2Id, childInfo) {
-      const parent1 = this.mice.find(m => m.id === parent1Id)
-      const parent2 = this.mice.find(m => m.id === parent2Id)
-      if (!parent1 || !parent2) return
-
-      const newMouse = {
-        id: Date.now(),
-        name: childInfo?.name || `Offspring-${this.mice.length + 1}`,
-        cageId: childInfo?.cageId || parent1.cageId,
-        genotype: childInfo?.genotype || parent1.genotype,
-        sex: childInfo?.sex || '未知',
-        birthDate: childInfo?.birthDate || new Date().toISOString().split('T')[0],
-        mateId: null,
-        children: [],
-        notes: '',
-        status: 'normal',
-        parents: [parent1Id, parent2Id]
-      }
-      this.mice.push(newMouse)
-
-      // 绑定父母与子女关系
-      parent1.children.push(newMouse.id)
-      parent2.children.push(newMouse.id)
-
-      this.addRecord(`老鼠 ${parent1.name} 与 ${parent2.name} 繁育，生成 ${newMouse.name}`)
+    // 删除单个笼子
+    deleteCage(cageId) {
+      const cage = this.cages.find(c => c.id === cageId)
+      this.cages = this.cages.filter((c) => c.id !== cageId)
+      this.mice = this.mice.filter((m) => m.cageId !== cageId)
+      this.addRecord(`删除笼位 ${cage?.name || cageId}`)
     },
 
-    // 删除老鼠
-    removeMouse(mouseId) {
-      this.mice = this.mice.filter(m => m.id !== mouseId)
-      this.addRecord(`删除老鼠 ID: ${mouseId}`)
+    // 获取笼子名字（避免日志里显示一串数字）
+    getCageName(cageId) {
+      const cage = this.cages.find(c => c.id === cageId)
+      return cage ? cage.name : cageId
     },
 
-    // 添加操作记录
+    // 添加日志
     addRecord(action) {
       this.records.push({
         id: Date.now(),
