@@ -49,7 +49,7 @@
         @click="showBreeding = true"
         class="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600"
       >
-        🍼 繁育
+        🍼 繁育小鼠
       </button>
 
       <button

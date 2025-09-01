@@ -6,7 +6,26 @@
       <div>
         <button class="absolute top-2 right-2 text-gray-500 hover:text-gray-800" @click="emit('close')">✕</button>
         <h2 class="text-2xl font-bold mb-6">🍼 繁育管理</h2>
-
+<!-- ⓘ 使用说明卡片（纯文字说明，已美化） -->
+<div class="mb-6 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4">
+  <div class="flex items-start gap-3">
+    <div class="text-2xl leading-none">💡</div>
+    <div class="text-sm leading-6 text-gray-700">
+      <p class="font-semibold text-gray-900">使用说明</p>
+      <p>
+        将 <span class="font-medium text-gray-900">满月/成年的异性</span> 老鼠（≥2 个月）
+        放在同一个笼位后，系统会自动识别为可繁育组合，并在下方列表中生成该笼位的
+        <span class="font-medium text-gray-900">“配偶对”</span>。
+      </p>
+      <ul class="mt-2 list-disc pl-5">
+        <li>在配偶对卡片中可依次确认 <span class="font-medium">配种</span>、<span class="font-medium">分笼</span>、<span class="font-medium">生产</span>；</li>
+        <li>确认配种后系统会自动计算 <span class="font-medium">预产期（+21 天）</span>；</li>
+        <li>到期后填写产仔数量并点击 <span class="font-medium">“生成新生小鼠”</span> 即可完成记录；</li>
+        <li>所有操作都会自动写入右侧 <span class="font-medium">📜 操作日志</span>。</li>
+      </ul>
+    </div>
+  </div>
+</div>
         <div v-for="cage in miceStore.cages" :key="cage.id" class="mb-6 border rounded p-4">
           <h3 class="text-lg font-semibold mb-2">{{ cage.name }}</h3>
 
