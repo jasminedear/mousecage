@@ -6,6 +6,7 @@
       </h1>
     </div>
 
+    <!-- 顶部工具条 -->
     <div class="flex flex-wrap items-center gap-3 mb-6 p-4 bg-white rounded-xl shadow-sm">
       <button @click="showAddCage = true" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
         🏠 添加笼子
@@ -26,6 +27,10 @@
         💾 保存数据
       </button>
 
+      <button @click="showOverview = true" class="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600">
+        🗺️ 笼位一览
+      </button>
+
       <button @click="showBreeding = true" class="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600">
         🍼 繁育小鼠
       </button>
@@ -42,7 +47,20 @@
         💀 死亡老鼠
       </button>
 
+      <!-- 右侧：搜索 + 筛选 -->
       <div class="ml-auto flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-lg border">
+        <!-- 🔎 搜索框（多关键词，空格分割） -->
+        <div class="flex items-center gap-2 bg-white border rounded px-2 py-1">
+          <span class="text-gray-500">🔎</span>
+          <input
+            v-model.trim="searchQuery"
+            type="text"
+            class="outline-none text-sm w-64"
+            placeholder="搜索 编号 / 基因型 / 分组 / 笼位 / 状态（空格分割多关键词）"
+          />
+          <button v-if="searchQuery" class="text-xs text-gray-500 hover:text-gray-700" @click="searchQuery = ''">清除</button>
+        </div>
+
         <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-sm">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
@@ -66,20 +84,23 @@
           仅有幼鼠
         </label>
 
-        <label class="flex items-center gap-1 text-sm">
-          <input type="checkbox" v-model="onlyEmptyCages" />
+        <label class="flex items-center gap-1 text-sm" :class="{'opacity-40 pointer-events-none': hasSearch}">
+          <input type="checkbox" v-model="onlyEmptyCages" :disabled="hasSearch" />
           仅空笼
         </label>
       </div>
     </div>
 
+    <!-- 颜色图例 -->
     <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-wrap gap-x-6 gap-y-2 justify-center">
       <div v-for="legend in colorLegends" :key="legend.name" class="flex items-center gap-2">
         <div :class="[legend.bgColor, 'w-4 h-4 rounded-full border border-gray-300']"></div>
         <span class="text-sm text-gray-600">{{ legend.name }}</span>
       </div>
+      <div v-if="hasSearch" class="text-sm text-gray-500">共 {{ totalMatched }} 条结果</div>
     </div>
 
+    <!-- 分排渲染 -->
     <div v-for="row in groupedRows" :key="row.name" class="mb-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
       <div class="flex justify-between items-center px-4 py-3 bg-gray-100 cursor-pointer" @click="toggleRow(row.name)">
         <div class="flex items-center gap-3">
@@ -90,7 +111,7 @@
             <span>总数: {{ rowSummary[row.name].totalMice }}</span>
             <span>♂: {{ rowSummary[row.name].maleCount }}</span>
             <span>♀: {{ rowSummary[row.name].femaleCount }}</span>
-            <span>基因型: {{ Object.keys(rowSummary[row.name].genotypes).join(', ') }}</span>
+            <span>基因型: {{ Array.from(rowSummary[row.name].genotypes).join(', ') }}</span>
             <span v-if="rowSummary[row.name].breedingCages > 0">繁育笼: {{ rowSummary[row.name].breedingCages }}</span>
           </div>
           <button class="text-blue-500 hover:text-blue-700 transition-colors duration-200" @click.stop="editRow(row.name)">
@@ -106,11 +127,17 @@
       </div>
 
       <div v-show="!collapsedRows[row.name]" class="p-4 bg-white">
-        <div v-for="cage in row.cages" :key="cage.id" :class="['mb-4 rounded-lg border p-3', cageClass(cage.id)]">
+        <div
+          v-for="cage in row.cages"
+          :key="cage.id"
+          :class="['mb-4 rounded-lg border p-3', cageClass(cage.id)]"
+          v-show="shouldShowCage(cage.id)"
+        >
           <div class="flex justify-between items-center mb-2">
             <div class="flex flex-col">
               <div class="flex items-center gap-2">
-                <h3 class="text-xl font-bold text-gray-800">{{ cage.name }}</h3>
+                <!-- 笼位名高亮 -->
+                <h3 class="text-xl font-bold text-gray-800" v-html="highlightHtml(cage.name)"></h3>
                 <span v-if="cageBadge(cage.id)" :class="['text-xs px-2 py-0.5 rounded-full', cageBadge(cage.id).cls]">
                   {{ cageBadge(cage.id).text }}
                 </span>
@@ -138,20 +165,31 @@
           </div>
 
           <div class="grid grid-cols-4 gap-3">
-            <MouseCard
+            <!-- 对匹配的卡片加描边高亮 -->
+            <div
               v-for="mouse in getMiceByCage(cage.id)"
               :key="mouse.id"
-              :mouse="mouse"
-              @view="openDetail"
-              @move="openMoveMouse"
-              @delete="deleteMouse"
-              @record-death-clicked="handleRecordDeathClicked"
-            />
+              :class="['rounded-lg', isMatched(mouse, cage) && hasSearch ? 'ring-2 ring-yellow-400 ring-offset-2' : '']"
+            >
+              <MouseCard
+                :mouse="mouse"
+                @view="openDetail"
+                @move="openMoveMouse"
+                @delete="deleteMouse"
+                @record-death-clicked="handleRecordDeathClicked"
+              />
+            </div>
           </div>
+        </div>
+
+        <!-- 搜索结果为空时的小提示 -->
+        <div v-if="hasSearch && !row.cages.some(c => getMiceByCage(c.id).length)" class="text-center text-gray-400 py-2">
+          此排无匹配结果
         </div>
       </div>
     </div>
 
+    <!-- 死亡原因下拉 -->
     <div
       v-if="showDeathReasonDropdown"
       class="fixed z-50 bg-white border rounded-lg shadow p-3 w-56"
@@ -178,6 +216,7 @@
       </div>
     </div>
 
+    <!-- 各弹窗 -->
     <AddCageModal v-if="showAddCage" @close="showAddCage = false" />
     <AddMouseModal v-if="showAddMouse" :cage-id="selectedCageId" @close="showAddMouse = false" />
     <MouseDetail
@@ -188,9 +227,9 @@
       @open-pedigree="openPedigree"
     />
     <MoveMouseModal v-if="showMoveMouse" :mouse="movingMouse" :cages="miceStore.cages" @close="showMoveMouse = false" />
-    <PedigreeView 
-      v-if="selectedPedigreeMouse" 
-      :mouse="selectedPedigreeMouse" 
+    <PedigreeView
+      v-if="selectedPedigreeMouse"
+      :mouse="selectedPedigreeMouse"
       @close="selectedPedigreeMouse = null"
       @open-other="openPedigree"
     />
@@ -198,11 +237,13 @@
     <DeadMouseListModal v-if="showDeadMiceModal" @close="showDeadMiceModal = false" />
     <BreedingModal v-if="showBreeding" @close="showBreeding = false" />
     <BreedingRecords v-if="showBreedingRecords" @close="showBreedingRecords = false" />
+
+    <CageOverview v-if="showOverview" :cages="miceStore.cages" @close="showOverview = false" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import AddCageModal from "./AddCageModal.vue";
 import AddMouseModal from "./AddMouseModal.vue";
 import MouseCard from "./MouseCard.vue";
@@ -214,12 +255,15 @@ import BreedingRecords from "./BreedingRecords.vue";
 import PedigreeView from "./PedigreeView.vue";
 import MouseListModal from "./MouseListModal.vue";
 import DeadMouseListModal from "./DeadMouseListModal.vue";
+import CageOverview from "./CageOverview.vue";
 import { importFile } from "@/utils/import";
 import { useMiceStore } from "@/stores/mice";
-import { useUserStore } from '@/stores/user'
+import { useUserStore } from "@/stores/user";
 
 const miceStore = useMiceStore();
 const userStore = useUserStore();
+
+const showOverview = ref(false);
 
 const selectedMouse = ref(null);
 const selectedPedigreeMouse = ref(null);
@@ -258,11 +302,60 @@ const filterGenotype = ref("");
 const onlyWithPups = ref(false);
 const onlyEmptyCages = ref(false);
 
-// ⚡ 新增：计算每排的总览信息
+/* ------------------------- 🔎 搜索逻辑 ------------------------- */
+const searchQuery = ref("");
+const hasSearch = computed(() => searchQuery.value.trim().length > 0);
+const keywords = computed(() =>
+  searchQuery.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((s) => s.toLowerCase())
+);
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// 文本高亮（用于笼位名）
+function highlightHtml(text) {
+  if (!hasSearch.value) return text;
+  let out = String(text);
+  for (const k of keywords.value) {
+    const re = new RegExp(escapeRegExp(k), "ig");
+    out = out.replace(
+      re,
+      (m) => `<mark class="bg-yellow-200 text-black rounded px-0.5">${m}</mark>`
+    );
+  }
+  return out;
+}
+
+// 判断一只老鼠是否命中所有关键词
+function isMatched(mouse, cageObj) {
+  if (!hasSearch.value) return true;
+  const cageName = cageObj?.name || miceStore.getCageName(mouse.cageId) || "";
+  const statuses = Array.isArray(mouse.statuses) ? mouse.statuses.join(" ") : "";
+  const haystack = [
+    mouse.name,
+    mouse.genotype,
+    mouse.group,
+    cageName,
+    statuses,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return keywords.value.every((k) => haystack.includes(k));
+}
+
+/* -------------------------------------------------------------- */
+
+// 计算每排概览
 const rowSummary = computed(() => {
   const summary = {};
-  miceStore.cages.forEach(cage => {
-    const rowName = cage.row || '未分组';
+  miceStore.cages.forEach((cage) => {
+    const rowName = cage.row || "未分组";
     if (!summary[rowName]) {
       summary[rowName] = {
         totalMice: 0,
@@ -272,26 +365,17 @@ const rowSummary = computed(() => {
         breedingCages: 0,
       };
     }
-    
-    // 获取该笼子的老鼠，并进行过滤（与 getMiceByCage 逻辑一致）
     const miceInCage = getMiceByCage(cage.id);
     summary[rowName].totalMice += miceInCage.length;
-
-    // 统计性别和基因型
-    miceInCage.forEach(mouse => {
-      if (mouse.sex === 'male') summary[rowName].maleCount++;
-      if (mouse.sex === 'female') summary[rowName].femaleCount++;
+    miceInCage.forEach((mouse) => {
+      if (mouse.sex === "male") summary[rowName].maleCount++;
+      if (mouse.sex === "female") summary[rowName].femaleCount++;
       if (mouse.genotype) summary[rowName].genotypes.add(mouse.genotype);
     });
-
-    // 统计繁育笼数量
-    if (getCageType(cage.id) === 'breeding') {
-      summary[rowName].breedingCages++;
-    }
+    if (getCageType(cage.id) === "breeding") summary[rowName].breedingCages++;
   });
   return summary;
 });
-
 
 function getMiceInCageRaw(cageId) {
   return miceStore.normalizedMice.filter((m) => m.cageId === cageId);
@@ -341,14 +425,31 @@ function cageBadge(cageId) {
   }
 }
 
+// 带筛选 + 搜索的取笼内老鼠
 function getMiceByCage(cageId) {
   let arr = miceStore.normalizedMice.filter((m) => m.cageId === cageId);
+
+  // 分类筛选
   if (filterSex.value) arr = arr.filter((m) => m.sex === filterSex.value);
   if (filterGenotype.value) arr = arr.filter((m) => (m.genotype || "") === filterGenotype.value);
-  if (onlyWithPups.value) {
-    arr = arr.filter((m) => Array.isArray(m.statuses) && m.statuses.includes("幼鼠"));
+  if (onlyWithPups.value) arr = arr.filter((m) => Array.isArray(m.statuses) && m.statuses.includes("幼鼠"));
+
+  // 关键词搜索
+  if (hasSearch.value) {
+    const cage = miceStore.cages.find((c) => c.id === cageId);
+    arr = arr.filter((m) => isMatched(m, cage));
   }
+
   return arr;
+}
+
+// 搜索时只显示有匹配 mouse 的笼
+function shouldShowCage(cageId) {
+  if (!hasSearch.value) {
+    if (onlyEmptyCages.value) return getMiceByCage(cageId).length === 0;
+    return true;
+  }
+  return getMiceByCage(cageId).length > 0;
 }
 
 const groupedRows = computed(() => {
@@ -356,13 +457,18 @@ const groupedRows = computed(() => {
   miceStore.cages.forEach((cage) => {
     const rowName = cage.row || "未分组";
     if (!groups[rowName]) groups[rowName] = [];
-    if (onlyEmptyCages.value) {
-      if (getMiceByCage(cage.id).length === 0) groups[rowName].push(cage);
-    } else {
-      groups[rowName].push(cage);
-    }
+    // 是否显示笼子由 shouldShowCage 控制，这里先都放入
+    groups[rowName].push(cage);
   });
   return Object.keys(groups).map((name) => ({ name, cages: groups[name] }));
+});
+
+// 统计搜索命中数量
+const totalMatched = computed(() => {
+  if (!hasSearch.value) return 0;
+  let n = 0;
+  miceStore.cages.forEach((c) => (n += getMiceByCage(c.id).length));
+  return n;
 });
 
 const collapsedRows = ref({});
@@ -465,24 +571,18 @@ async function handleImport(e) {
 
   try {
     const result = await importFile(file);
-
-    // 兼容：新工具返回 { asRows: [...] }；老工具可能直接是数组
     const rows = Array.isArray(result) ? result : (result.asRows || []);
-
-    // 逐条导入（保持你现有的 add 逻辑）
     for (const item of rows) {
       if (item.type === "cage") {
         miceStore.addCage(item);
       } else if (item.type === "mouse") {
-        // 如果只有 cageName 没有 cageId，这里做一次名字→id 映射
         if (!item.cageId && item.cageName) {
-          const cage = miceStore.cages.find(c => c.name === item.cageName);
+          const cage = miceStore.cages.find((c) => c.name === item.cageName);
           if (cage) item.cageId = cage.id;
         }
         miceStore.addMouse(item);
       }
     }
-
     alert(`导入成功！共导入 ${rows.length} 条记录`);
   } catch (err) {
     console.error("导入失败:", err);
@@ -491,7 +591,6 @@ async function handleImport(e) {
     e.target.value = null;
   }
 }
-
 
 function saveData() {
   const userId = userStore.currentUser?.id;
@@ -535,14 +634,15 @@ watch(
   },
   { immediate: true }
 );
-// ⚡ 新增的 watch 效果：当笼位数据变化时，将所有排设为折叠
+
+// 笼位变化后默认折叠
 watch(
   () => miceStore.cages,
   (newCages) => {
     if (newCages.length > 0) {
-      const rows = [...new Set(newCages.map(c => c.row || '未分组'))];
+      const rows = [...new Set(newCages.map((c) => c.row || "未分组"))];
       const newCollapsedState = {};
-      rows.forEach(row => {
+      rows.forEach((row) => {
         newCollapsedState[row] = true;
       });
       collapsedRows.value = newCollapsedState;
@@ -555,5 +655,6 @@ watch(
 </script>
 
 <style scoped>
-/* 可在此加自定义样式 */
+/* 让 mark 更柔和一些 */
+mark { border-radius: 0.25rem; padding: 0 0.125rem; }
 </style>
