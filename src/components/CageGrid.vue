@@ -462,21 +462,36 @@ function confirmDeath() {
 async function handleImport(e) {
   const file = e.target.files[0];
   if (!file) return;
+
   try {
-    const data = await importFile(file);
-    data.forEach((item) => {
-      if (item.type === "cage") miceStore.addCage(item);
-      else if (item.type === "mouse") miceStore.addMouse(item);
-    });
-    miceStore.addRecord(`📂 导入成功，文件 ${file.name}`);
-    alert("导入成功！");
+    const result = await importFile(file);
+
+    // 兼容：新工具返回 { asRows: [...] }；老工具可能直接是数组
+    const rows = Array.isArray(result) ? result : (result.asRows || []);
+
+    // 逐条导入（保持你现有的 add 逻辑）
+    for (const item of rows) {
+      if (item.type === "cage") {
+        miceStore.addCage(item);
+      } else if (item.type === "mouse") {
+        // 如果只有 cageName 没有 cageId，这里做一次名字→id 映射
+        if (!item.cageId && item.cageName) {
+          const cage = miceStore.cages.find(c => c.name === item.cageName);
+          if (cage) item.cageId = cage.id;
+        }
+        miceStore.addMouse(item);
+      }
+    }
+
+    alert(`导入成功！共导入 ${rows.length} 条记录`);
   } catch (err) {
     console.error("导入失败:", err);
-    alert("导入失败，请检查文件格式");
+    alert(`导入失败：${err?.message || "请检查文件格式"}`);
   } finally {
     e.target.value = null;
   }
 }
+
 
 function saveData() {
   const userId = userStore.currentUser?.id;
