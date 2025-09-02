@@ -5,6 +5,22 @@
       <!-- 关闭 -->
       <button class="absolute top-2 right-2 text-gray-500 hover:text-gray-800" @click="emit('close')">✕</button>
 
+      <!-- 顶部：搜索过滤 -->
+      <div class="mb-4 flex items-center gap-2">
+        <input
+          v-model="query"
+          @keydown.enter.prevent
+          type="text"
+          placeholder="🔎 输入老鼠编号或笼位（如 M01 / A-1-01）进行筛选"
+          class="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-indigo-200"
+        />
+        <button
+          class="px-3 py-2 bg-gray-100 rounded hover:bg-gray-200 text-sm"
+          @click="query = ''"
+          :disabled="!query"
+        >清空</button>
+      </div>
+
       <!-- 顶部两栏：左说明 / 右✂️清单 -->
       <div class="mb-6 flex gap-6">
         <!-- 左：使用说明 -->
@@ -25,34 +41,46 @@
 
         <!-- 右：✂️需剪指/贴耳标 -->
         <div class="w-[360px] rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-pink-50 p-4">
-          <h3 class="text-lg font-bold mb-3">✂️ 需剪指/贴耳标（≥21天）</h3>
-          <div v-if="pupsNeedingTag.length === 0" class="text-gray-500 text-sm">当前没有待标记的小鼠。</div>
+          <h3 class="text-lg font-bold mb-3">
+            ✂️ 需剪指/贴耳标（≥21天）
+            <span class="text-sm font-normal text-gray-600">— 共 {{ filteredPupsNeedingTag.length }} 只</span>
+          </h3>
+
+          <div v-if="filteredPupsNeedingTag.length === 0" class="text-gray-500 text-sm">
+            {{ query ? '无匹配结果' : '当前没有待标记的小鼠。' }}
+          </div>
+
           <ul v-else class="space-y-2 text-sm max-h-[260px] overflow-y-auto">
             <li
-              v-for="m in pupsNeedingTag"
+              v-for="m in filteredPupsNeedingTag"
               :key="m.id"
-              class="border rounded p-2 bg-white flex justify-between items-center"
+              class="border rounded p-2 bg-white"
             >
-              <div>
-                <div class="font-semibold">{{ m.name }}（{{ displaySex(m.sex) }}）</div>
-                <div class="text-xs text-gray-600">
-                  出生：{{ m.birthDate }} ｜ 已龄：{{ ageDays(m.birthDate) }} 天 ｜ 基因型：{{ m.genotype || '未知' }}
+              <div class="flex justify-between items-start gap-3">
+                <div>
+                  <div class="font-semibold">
+                    {{ m.name }}（{{ displaySex(m.sex) }}）
+                    <span class="ml-2 text-xs text-gray-500">笼：{{ miceStore.getCageName(m.cageId) }}</span>
+                  </div>
+                  <div class="text-xs text-gray-600 mt-0.5">
+                    出生：{{ m.birthDate }} ｜ 已龄：{{ ageDays(m.birthDate) }} 天 ｜ 基因型：{{ m.genotype || '未知' }}
+                  </div>
                 </div>
+                <button
+                  class="px-2 py-1 bg-gray-800 text-white rounded hover:bg-black text-xs whitespace-nowrap"
+                  @click="markTagged(m.id)"
+                >
+                  已剪指/贴耳标
+                </button>
               </div>
-              <button
-                class="px-2 py-1 bg-gray-800 text-white rounded hover:bg-black text-xs"
-                @click="markTagged(m.id)"
-              >
-                已剪指/贴耳标
-              </button>
             </li>
           </ul>
         </div>
       </div>
 
-      <!-- 繁育配对列表（按预产期排序） -->
+      <!-- 繁育配对列表（按预产期排序 + 搜索过滤） -->
       <div
-        v-for="pair in sortedBreedingPairs"
+        v-for="pair in filteredBreedingPairs"
         :key="pair.key"
         class="mb-6 border rounded p-4"
       >
@@ -93,7 +121,7 @@
               >✅ 确认配种</button>
             </div>
 
-            <!-- 分笼（填了分笼日期后，还能继续显示输入以便修改，但徽标会隐藏） -->
+            <!-- 分笼 -->
             <div>
               <label class="block text-sm">分笼日期</label>
               <input
@@ -146,8 +174,8 @@
         </div>
       </div>
 
-      <div v-if="sortedBreedingPairs.length === 0" class="text-center text-gray-500 mt-12">
-        暂无进行中的繁育记录。
+      <div v-if="filteredBreedingPairs.length === 0" class="text-center text-gray-500 mt-12">
+        {{ query ? '无匹配的配对记录。' : '暂时没有进行中的繁育记录。' }}
       </div>
 
     </div>
@@ -155,7 +183,7 @@
 </template>
 
 <script setup>
-import { reactive, computed, onMounted, watch } from "vue";
+import { reactive, computed, onMounted, watch, ref } from "vue";
 import { useMiceStore } from "@/stores/mice";
 
 const emit = defineEmits(["close"]);
@@ -163,6 +191,10 @@ const miceStore = useMiceStore();
 
 const displaySex = (s) => (s === "male" || s === "♂" ? "♂" : s === "female" || s === "♀" ? "♀" : (s || ""));
 const sameId = (a, b) => String(a) === String(b);
+const toKey = (v) => String(v || "").toLowerCase();
+
+// —— 搜索关键字 —— //
+const query = ref("");
 
 // —— 本地草稿（每个配对一个对象） —— //
 const drafts = reactive({}); // key -> { matingDate, separationDate, birthDate }
@@ -243,7 +275,7 @@ function dueDateColor(dueStr) {
   return "text-gray-700";
 }
 
-// 列表：按预产期排序（近 → 远；未设置最后）
+// 配对：按预产期排序（近 → 远；未设置最后）
 const sortedBreedingPairs = computed(() => {
   const pairs = [];
   for (const key in miceStore.breeding) {
@@ -272,6 +304,31 @@ const sortedBreedingPairs = computed(() => {
   // 为显示中的每个 pair 补草稿（不覆盖已有输入）
   pairs.forEach(fillDraftFromData);
   return pairs;
+});
+
+// —— 搜索过滤 —— //
+// pups：按小鼠名或笼位名匹配
+const filteredPupsNeedingTag = computed(() => {
+  const list = pupsNeedingTag.value;
+  const q = toKey(query.value);
+  if (!q) return list;
+  return list.filter((m) => {
+    const nameHit = toKey(m.name).includes(q);
+    const cageHit = toKey(miceStore.getCageName(m.cageId)).includes(q);
+    return nameHit || cageHit;
+  });
+});
+// pairs：按公/母名或笼位名匹配
+const filteredBreedingPairs = computed(() => {
+  const list = sortedBreedingPairs.value;
+  const q = toKey(query.value);
+  if (!q) return list;
+  return list.filter((p) => {
+    const maleHit = toKey(p.male.name).includes(q);
+    const femaleHit = toKey(p.female.name).includes(q);
+    const cageHit = toKey(miceStore.getCageName(p.data.cageId)).includes(q);
+    return maleHit || femaleHit || cageHit;
+  });
 });
 
 // 母鼠可再配徽标（若本对已填分笼则不显示）
@@ -305,7 +362,7 @@ function motherBadge(female) {
   }
 }
 
-// 三步确认（草稿 → 写回 → 保存；不会影响其他字段）
+// 三步确认（草稿 → 写回 → 保存）
 async function confirmStep(pair, step) {
   const data = pair.data;
   const d = draftFor(pair.key);
