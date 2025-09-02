@@ -23,15 +23,35 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useUserStore } from '@/stores/user'
-import CageGrid from '@/components/CageGrid.vue'
-import Login from '@/components/Login.vue'
+import { ref, watch } from 'vue';
+import { useUserStore } from '@/stores/user';
+import { useMiceStore } from '@/stores/mice';
+import CageGrid from '@/components/CageGrid.vue';
+import Login from '@/components/Login.vue';
 
-const showLogin = ref(false)
-const userStore = useUserStore()
+const showLogin = ref(false);
+const userStore = useUserStore();
+const miceStore = useMiceStore();
 
 function logout() {
-  userStore.logout()
+  userStore.logout();
+  miceStore.resetState(); // 退出时清空数据
 }
+
+// 核心修复：监听用户状态变化
+watch(
+  () => userStore.currentUser,
+  (newCurrentUser, oldCurrentUser) => {
+    // 登录：从无到有
+    if (newCurrentUser && !oldCurrentUser) {
+      miceStore.loadFromCloud(newCurrentUser.id);
+    } 
+    // 退出：从有到无
+    else if (!newCurrentUser && oldCurrentUser) {
+      miceStore.resetState();
+    }
+  },
+  { immediate: true }
+);
+
 </script>

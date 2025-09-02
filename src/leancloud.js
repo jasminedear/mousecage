@@ -1,67 +1,65 @@
-import AV from 'leancloud-storage'
+import AV from 'leancloud-storage';
 
-// 替换成你的 LeanCloud 应用的 AppID、AppKey、ServerURL
 AV.init({
-  appId: "ZLkkPAXcgPohlfbhzN3UPDUt-gzGzoHsz",
-  appKey: "WCk6OSzGnaCWaE6rnrisYFJ2",
-  serverURL: "https://zlkkpaxc.lc-cn-n1-shared.com"
-})
+  appId: 'ZLkkPAXcgPohlfbhzN3UPDUt-gzGzoHsz',
+  appKey: 'WCk6OSzGnaCWaE6rnrisYFJ2',
+  serverURL: 'https://zlkkpaxc.lc-cn-n1-shared.com'
+});
 
-// ⚡ 核心：使用 'UserData' 这个 Class 来存储每个用户的数据
-const DATA_CLASS_NAME = 'UserData';
-const USER_POINTER_KEY = 'owner';
-const DATA_KEY = 'appData';
+// ⚠️ 与控制台一致：你现在的表叫 MouseData（不是 MiceData）
+const CLASS = 'MouseData';
+const FIELD_DATA  = 'data';
+const FIELD_OWNER = 'owner'; // Pointer<_User>
 
-/**
- * 根据用户ID保存数据
- * @param {object} data 要保存的 JSON 对象
- * @param {string} userId 当前用户的唯一ID
- * @returns {Promise<boolean>} 保存是否成功
- */
-export async function saveToCloud(data, userId) {
+async function getOrCreateDocForUser(user) {
+  if (!user) throw new Error('no current user');
+
+  // 只查“属于当前用户”的那条
+  const q = new AV.Query(CLASS);
+  q.equalTo(FIELD_OWNER, user);
+  let doc = await q.first();
+
+  if (!doc) {
+    const Obj = AV.Object.extend(CLASS);
+    doc = new Obj();
+    doc.set(FIELD_OWNER, user);
+
+    // 仅本人可读写
+    const acl = new AV.ACL(user);
+    acl.setPublicReadAccess(false);
+    acl.setPublicWriteAccess(false);
+    doc.setACL(acl);
+
+    await doc.save();
+  }
+  return doc;
+}
+
+export async function saveToCloud(data) {
+  const user = AV.User.current();
+  if (!user) { console.error('[LC] save failed: no user'); return false; }
   try {
-    // 使用 createWithoutData 方法，避免不必要的网络请求
-    const user = AV.Object.createWithoutData('_User', userId);
-    const query = new AV.Query(DATA_CLASS_NAME);
-    query.equalTo(USER_POINTER_KEY, user);
-    
-    // 查找该用户已有的数据对象
-    let userObject = await query.first();
-
-    if (!userObject) {
-      // 如果没有，则新建一个数据对象并关联到当前用户
-      userObject = new AV.Object(DATA_CLASS_NAME);
-      userObject.set(USER_POINTER_KEY, user);
-    }
-    
-    // 设置数据，并保存
-    userObject.set(DATA_KEY, data);
-    await userObject.save();
+    const doc = await getOrCreateDocForUser(user);
+    doc.set(FIELD_DATA, data);
+    await doc.save();
+    console.log('[LC] ✅ saved for', user.id);
     return true;
-  } catch (error) {
-    console.error('云端保存失败:', error);
+  } catch (e) {
+    console.error('[LC] ❌ save error', e);
     return false;
   }
 }
 
-/**
- * 根据用户ID加载数据
- * @param {string} userId 当前用户的唯一ID
- * @returns {Promise<object|null>} 加载到的数据对象或 null
- */
-export async function loadFromCloud(userId) {
+export async function loadFromCloud() {
+  const user = AV.User.current();
+  if (!user) { console.error('[LC] load failed: no user'); return null; }
   try {
-    const user = AV.Object.createWithoutData('_User', userId);
-    const query = new AV.Query(DATA_CLASS_NAME);
-    query.equalTo(USER_POINTER_KEY, user);
-    
-    const userObject = await query.first();
-    
-    return userObject ? userObject.get(DATA_KEY) : null;
-  } catch (error) {
-    console.error('云端加载失败:', error);
+    const doc = await getOrCreateDocForUser(user);
+    return doc.get(FIELD_DATA) || null;
+  } catch (e) {
+    console.error('[LC] ❌ load error', e);
     return null;
   }
 }
 
-export default AV
+export default AV;
