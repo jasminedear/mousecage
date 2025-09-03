@@ -88,6 +88,12 @@
           <input type="checkbox" v-model="onlyEmptyCages" :disabled="hasSearch" />
           仅空笼
         </label>
+        
+        <!-- ⭐ 只看星标 -->
+        <label class="flex items-center gap-1 text-sm">
+          <input type="checkbox" v-model="onlyStarred" />
+          只看星标
+        </label>
       </div>
     </div>
 
@@ -158,10 +164,17 @@
               <button class="px-2 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600" @click="openAddMouse(cage.id)">
                 ➕ 添加老鼠
               </button>
+              <button class="px-2 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600" @click="transferCage(cage.id)">
+                📦 转移笼子
+              </button>
+              <button class="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600" @click="renameCage(cage.id)">
+                ✏️ 改名
+              </button>
               <button class="px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600" @click="deleteCage(cage.id)">
                 🗑️ 删除笼子
               </button>
             </div>
+
           </div>
 
           <div class="grid grid-cols-4 gap-3">
@@ -286,6 +299,7 @@ const currentMouseId = ref(null);
 const selectedDeathReason = ref("");
 const customDeathReason = ref("");
 const deathReasonOptions = ["生病", "老死", "实验"];
+const onlyStarred = ref(false)   // ⭐ 新增：只看星标
 
 const normalizedMice = computed(() => miceStore.normalizedMice);
 
@@ -425,6 +439,35 @@ function cageBadge(cageId) {
   }
 }
 
+
+// 自然排序（支持中英文 & 数字混排）
+const collator = new Intl.Collator('zh-Hans-CN-u-nu-hanidec', { numeric: true, sensitivity: 'base' })
+
+function cmpRow(a, b) {
+  // 空的排名放到最后
+  const ra = a?.row || 'ZZZ'
+  const rb = b?.row || 'ZZZ'
+  return collator.compare(ra, rb)
+}
+
+function cmpCageName(a, b) {
+  const na = a?.name || ''
+  const nb = b?.name || ''
+  return collator.compare(na, nb)
+}
+
+// 先按“排”排，再按“笼名”排
+const sortedCages = computed(() => {
+  const copy = [...miceStore.cages]
+  copy.sort((a, b) => {
+    const r = cmpRow(a, b)
+    if (r !== 0) return r
+    return cmpCageName(a, b)
+  })
+  return copy
+})
+
+
 // 带筛选 + 搜索的取笼内老鼠
 function getMiceByCage(cageId) {
   let arr = miceStore.normalizedMice.filter((m) => m.cageId === cageId);
@@ -433,6 +476,8 @@ function getMiceByCage(cageId) {
   if (filterSex.value) arr = arr.filter((m) => m.sex === filterSex.value);
   if (filterGenotype.value) arr = arr.filter((m) => (m.genotype || "") === filterGenotype.value);
   if (onlyWithPups.value) arr = arr.filter((m) => Array.isArray(m.statuses) && m.statuses.includes("幼鼠"));
+   // ⭐ 星标筛选
+  if (onlyStarred.value) arr = arr.filter(m => m.starred)
 
   // 关键词搜索
   if (hasSearch.value) {
@@ -453,15 +498,19 @@ function shouldShowCage(cageId) {
 }
 
 const groupedRows = computed(() => {
-  const groups = {};
-  miceStore.cages.forEach((cage) => {
-    const rowName = cage.row || "未分组";
-    if (!groups[rowName]) groups[rowName] = [];
-    // 是否显示笼子由 shouldShowCage 控制，这里先都放入
-    groups[rowName].push(cage);
-  });
-  return Object.keys(groups).map((name) => ({ name, cages: groups[name] }));
-});
+  const groups = {}
+  // 用已排序的笼位列表来分组
+  sortedCages.value.forEach((cage) => {
+    const rowName = cage.row || '未分组'
+    if (!groups[rowName]) groups[rowName] = []
+    groups[rowName].push(cage) // 每个 row 内也已经按笼名排好
+  })
+  // row 顺序也做自然排序
+  return Object.keys(groups)
+    .sort((a, b) => collator.compare(a, b))
+    .map((name) => ({ name, cages: groups[name] }))
+})
+
 
 // 统计搜索命中数量
 const totalMatched = computed(() => {
@@ -562,6 +611,30 @@ function confirmDeath() {
     showDeathReasonDropdown.value = false;
   } else {
     alert("请选择或输入死亡原因");
+  }
+}
+
+
+function transferCage(fromCageId) {
+  const targetName = prompt("请输入目标笼子的名字：");
+  if (!targetName) return;
+
+  const target = miceStore.cages.find(c => c.name === targetName);
+  if (!target) {
+    alert("没有找到这个笼子！");
+    return;
+  }
+
+  const count = miceStore.moveCageMice(fromCageId, target.id);
+  alert(`已转移 ${count} 只老鼠到 ${target.name}`);
+}
+
+function renameCage(cageId) {
+  const cage = miceStore.cages.find(c => c.id === cageId);
+  if (!cage) return;
+  const newName = prompt("请输入新的笼子名字：", cage.name);
+  if (newName && newName.trim() !== "") {
+    miceStore.renameCage(cageId, newName.trim());
   }
 }
 

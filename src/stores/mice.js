@@ -39,6 +39,26 @@ export const useMiceStore = defineStore("mice", {
   },
 
   actions: {
+    // === 笼子操作 ===
+moveCageMice(fromCageId, toCageId) {
+  if (!fromCageId || !toCageId || fromCageId === toCageId) return false;
+  const moved = this.mice.filter(m => m.cageId === fromCageId);
+  moved.forEach(m => { m.cageId = toCageId });
+  this.addRecord(`📦 ${moved.length} 只老鼠从 ${this.getCageName(fromCageId)} → ${this.getCageName(toCageId)}`);
+  return moved.length;
+},
+
+renameCage(cageId, newName) {
+  const cage = this.cages.find(c => c.id === cageId);
+  if (!cage) return false;
+  const oldName = cage.name;
+  cage.name = newName;
+  this.addRecord(`✏️ 笼子重命名: ${oldName} → ${newName}`);
+  return true;
+},
+
+    
+    
     // === 云端存储 ===
     async saveToCloud(options = {}) {
       const silent = options.silent === true;
@@ -286,6 +306,14 @@ export const useMiceStore = defineStore("mice", {
         `Child registered: ${child.name || childId} ← ${fa?.name || fatherId || "Unknown"}/${mo?.name || motherId || "Unknown"}`
       );
       return true;
+    },
+
+    // === 星标功能 ===
+    toggleStar(mouseId) {
+      const m = this.mice.find(x => x.id === mouseId);
+      if (!m) return;
+      m.starred = !m.starred;   // 没有时自动加这个字段
+      this.addRecord(`${m.starred ? "⭐ 标记" : "☆ 取消标记"}: ${m.name || mouseId}`);
     },
 
     // === 公共工具 ===
