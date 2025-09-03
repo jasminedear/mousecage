@@ -1,21 +1,13 @@
 <template>
   <div>
-    <!-- 未登录：显示登录按钮和登录界面 -->
-    <div v-if="!userStore.currentUser">
-      <button
-        class="absolute top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded"
-        @click="showLogin = !showLogin"
-      >
-        {{ showLogin ? '关闭' : '登录/注册' }}
-      </button>
-      <Login v-if="showLogin" />
-    </div>
+    <!-- 未登录：直接显示居中遮罩登录弹窗 -->
+    <Login v-if="!userStore.currentUser" />
 
-    <!-- 已登录：显示用户名 + 退出按钮 + CageGrid -->
+    <!-- 已登录：显示用户名 + 退出 + 主页面 -->
     <div v-else>
-      <div class="absolute top-4 right-4 flex items-center gap-2">
+      <div class="fixed top-4 right-4 z-40 flex items-center gap-2">
         <span class="text-gray-700">👤 {{ userStore.currentUser.getUsername() }}</span>
-        <button @click="logout" class="bg-gray-300 px-3 py-1 rounded">退出</button>
+        <button @click="logout" class="bg-gray-300 px-3 py-1 rounded hover:bg-gray-400">退出</button>
       </div>
       <CageGrid />
     </div>
@@ -23,35 +15,30 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
-import { useUserStore } from '@/stores/user';
-import { useMiceStore } from '@/stores/mice';
-import CageGrid from '@/components/CageGrid.vue';
-import Login from '@/components/Login.vue';
+import { watch } from 'vue'
+import { useUserStore } from '@/stores/user'
+import { useMiceStore } from '@/stores/mice'
+import CageGrid from '@/components/CageGrid.vue'
+import Login from '@/components/Login.vue'
 
-const showLogin = ref(false);
-const userStore = useUserStore();
-const miceStore = useMiceStore();
+const userStore = useUserStore()
+const miceStore = useMiceStore()
 
 function logout() {
-  userStore.logout();
-  miceStore.resetState(); // 退出时清空数据
+  userStore.logout()
+  miceStore.resetState() // 退出时清空数据
 }
 
-// 核心修复：监听用户状态变化
+// 监听登录状态，登录后加载云端数据，退出时清空
 watch(
   () => userStore.currentUser,
-  (newCurrentUser, oldCurrentUser) => {
-    // 登录：从无到有
-    if (newCurrentUser && !oldCurrentUser) {
-      miceStore.loadFromCloud(newCurrentUser.id);
-    } 
-    // 退出：从有到无
-    else if (!newCurrentUser && oldCurrentUser) {
-      miceStore.resetState();
+  (newU, oldU) => {
+    if (newU && !oldU) {
+      miceStore.loadFromCloud(newU.id)
+    } else if (!newU && oldU) {
+      miceStore.resetState()
     }
   },
   { immediate: true }
-);
-
+)
 </script>
