@@ -307,6 +307,50 @@ renameCage(cageId, newName) {
       );
       return true;
     },
+    
+    // === 新增/修改：解除配偶（双向） ===
+unlinkSpouses(aId, bId) {
+  const a = this.mice.find(m => m.id === aId);
+  const b = this.mice.find(m => m.id === bId);
+  if (!a || !b) return false;
+  a.spouseIds = Array.isArray(a.spouseIds) ? a.spouseIds : [];
+  b.spouseIds = Array.isArray(b.spouseIds) ? b.spouseIds : [];
+  a.spouseIds = a.spouseIds.filter(id => id !== bId);
+  b.spouseIds = b.spouseIds.filter(id => id !== aId);
+  this.addRecord(`Unlink spouses: ${a.name || aId} × ${b.name || bId}`);
+  return true;
+},
+
+// === 新增/修改：从“父/母 → 子”删除一条亲子关系（双向） ===
+// 这里 parentId 是“要移除关系的这位父/母”的 id；childId 是子女 id。
+removeChildFromParent(parentId, childId) {
+  const parent = this.mice.find(m => m.id === parentId);
+  const child  = this.mice.find(m => m.id === childId);
+  if (!parent || !child) return false;
+
+  // 父/母侧删除 childrenIds
+  parent.childrenIds = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
+  parent.childrenIds = parent.childrenIds.filter(id => id !== childId);
+
+  // 子侧清理 fatherId/motherId（只清掉“这位家长”的指针）
+  if (child.fatherId === parentId) child.fatherId = null;
+  if (child.motherId === parentId) child.motherId = null;
+
+  this.addRecord(`Remove child link: ${parent.name || parentId} –/→ ${child.name || childId}`);
+  return true;
+},
+
+// === 新增/修改：统一删除入口，给组件调用更简单 ===
+// type: 'spouse' | 'child'
+removeRelationship(sourceId, targetId, type) {
+  if (type === 'spouse') {
+    return this.unlinkSpouses(sourceId, targetId);
+  } else if (type === 'child') {
+    return this.removeChildFromParent(sourceId, targetId);
+  }
+  return false;
+},
+
 
     // === 星标功能 ===
     toggleStar(mouseId) {
