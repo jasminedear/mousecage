@@ -1,0 +1,156 @@
+<!-- 死亡逻辑 -->
+@record-death-clicked="handleRecordDeathClicked"
+
+function handleRecordDeathClicked(payload) {
+  const { mouse, event } = payload;
+  // ⚠️ 确认 MouseCard.vue emit 的 payload 包含 event，否则 getBoundingClientRect() 会报错
+  currentMouseId.value = mouse.id;
+  ...
+}
+vue
+复制代码
+<!-- 移动老鼠逻辑 -->
+@move="openMoveMouse"
+
+function openMoveMouse(mouse) {
+  movingMouse.value = mouse;
+  showMoveMouse.value = true;
+}
+
+<!-- ⚠️ 问题：这里只是打开弹窗，没有更新 store -->
+<!-- 建议：在 MoveMouseModal 确认时调用 -->
+miceStore.updateMouse(mouse.id, { cageId: newCageId });
+vue
+复制代码
+// 导入逻辑
+async function handleImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const data = await importFile(file);
+    data.forEach((item) => {
+      if (item.type === "cage") {
+        miceStore.addCage(item);
+      } else if (item.type === "mouse") {
+        // ⚠️ 建议：在导入 mouse 时先检查 cageId 是否存在
+        if (item.cageId && miceStore.cages.some(c => c.id === item.cageId)) {
+          miceStore.addMouse(item);
+        } else {
+          console.warn("导入失败：笼位不存在", item);
+        }
+      }
+    });
+    ...
+  }
+}
+🟡 总结
+删除 vs 死亡 → 文案上明确区分，避免误删。
+
+死亡记录 → 确认 MouseCard emit 的 payload 有 event。
+
+移动老鼠 → 弹窗确认后必须调用 miceStore.updateMouse。
+
+导入功能 → 加一层校验，避免悬空老鼠。
+
+这样改完后：
+
+mice.js 的核心逻辑完全不动。
+
+CageGrid 的交互更清晰，数据一致性更强。
+
+
+
+好主意 👍
+我帮你整理一份 **Tips 清单**，用来固定“约定俗成”的引用方式和命名规范。以后如果你觉得我有点混乱，你只要把这份 Tips 发给我，我就能快速恢复上下文。
+
+---
+
+# 🐭 鼠笼管理系统 Tips
+
+## 一、Store（mice.js）
+
+* **导入**：
+
+  ```js
+  import { useMiceStore } from "@/stores/mice"
+  const miceStore = useMiceStore()
+  ```
+* **核心 state**：
+
+  * `cages`：笼位数组
+  * `mice`：活体老鼠
+  * `deadMice`：死亡老鼠
+  * `records`：日志
+  * `breeding`：繁育信息
+* **常用 getters**：
+
+  * `normalizedMice` → 保证 sex 始终为 `"male"|"female"|"normal"`
+  * `allGenotypes` → 所有基因型（去重）
+* **常用 actions**：
+
+  * `addCage(cage)` / `deleteCage(cageId)` / `deleteRow(rowName)`
+  * `addMouse(mouse)` / `deleteMouse(mouseId)` / `updateMouse(id, fields)`
+  * `recordDeath(mouseId, cause)` / `deleteDeadMouse(id)` / `clearAllDeadMice()`
+  * `renameRow(oldName, newName)`
+  * `saveToCloud({silent})` / `loadFromCloud()`
+  * `getCageName(cageId)`
+
+---
+
+## 二、CageGrid.vue
+
+* **数据读取**
+
+  * 一定要用 `miceStore.normalizedMice` 渲染老鼠
+  * 渲染笼位名要用 `miceStore.getCageName(mouse.cageId)`
+* **事件调用**
+
+  * 删除笼子：`miceStore.deleteCage(cageId)`
+  * 删除老鼠（彻底）：`miceStore.deleteMouse(mouseId)`
+  * 标记死亡：`miceStore.recordDeath(mouseId, cause)`
+  * 移动老鼠：`miceStore.updateMouse(mouse.id, { cageId: newCageId })`（在 MoveMouseModal 确认时调用）
+* **筛选器**
+
+  * 性别：`male` / `female`
+  * 基因型：`miceStore.allGenotypes`
+  * 特殊状态：`mouse.statuses` 里有 `"幼鼠"` / `"怀孕"`
+
+---
+
+## 三、MouseCard.vue
+
+* 必须 emit 的事件：
+
+  * `@view="openDetail"`
+  * `@move="openMoveMouse"`
+  * `@delete="deleteMouse"`
+  * `@record-death-clicked="handleRecordDeathClicked"` → ⚠️ payload 必须包含 `{ mouse, event }`
+
+---
+
+## 四、命名规范
+
+* **性别**：统一为 `"male"` / `"female"`（UI 层可以显示 `♂` / `♀`）
+* **时间**：目前用 `new Date().toLocaleString()`（可改 ISO，但先保持一致）
+* **id**：全部用 `generateShortId()` 生成，避免冲突
+* **状态（statuses）**：可包含 `"幼鼠"|"怀孕"|"哺乳"` 等中文字符串
+
+---
+
+## 五、最佳实践
+
+* **删除 vs 死亡**
+
+  * 删除 → 测试/误加时使用，不留记录
+  * 死亡 → 生产中使用，保留在 `deadMice`，必须选择/输入死亡原因
+* **导入**
+
+  * 先校验 `cageId` 是否存在，再 `miceStore.addMouse(item)`
+* **自动保存**
+
+  * 使用 `miceStore.saveToCloud({ silent: true })`，避免写日志死循环
+
+---
+
+这样一份 Tips 可以保证我们以后沟通时不会乱掉。
+要不要我帮你再写一个 **简化版（10 行左右）**，专门给你快速贴出来当“记忆恢复键”？

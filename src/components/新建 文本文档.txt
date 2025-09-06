@@ -34,7 +34,15 @@ src/
  └─ main.ts
 👌 好，那我们就按照一个最自然的开发顺序来走，避免返工。建议从 **数据层 → 组件层 → 功能层** 的思路开始：
 
----
+入口层 → App.vue、main.ts、stores/mice.js。
+
+核心 UI → CageGrid.vue、MouseCard.vue、MouseDetail.vue。
+
+关键操作 → BreedingModal.vue、MoveMouseModal.vue、BreedingRecords.vue。
+
+导入导出 → ExportDropdown.vue、utils/export.js、utils/import.js。
+
+次要功能 → 其他 modal / 列表类文件。
 
 ### 🥇 第一步：数据层（Pinia store）
 

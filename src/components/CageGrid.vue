@@ -46,6 +46,7 @@
       <button @click="showDeadMiceModal = true" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
         💀 死亡老鼠
       </button>
+      
 
       <!-- 右侧：搜索 + 筛选 -->
       <div class="ml-auto flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-lg border">
@@ -272,7 +273,6 @@ import CageOverview from "./CageOverview.vue";
 import { importFile } from "@/utils/import";
 import { useMiceStore } from "@/stores/mice";
 import { useUserStore } from "@/stores/user";
-
 const miceStore = useMiceStore();
 const userStore = useUserStore();
 
@@ -674,6 +674,24 @@ function saveData() {
     alert("请登录后保存！");
   }
 }
+
+ function keepStarredNow() {
+   const before = miceStore.mice.length;
+   const ok = typeof miceStore.extractUsedSubsetAndReplace === "function"
+     && miceStore.extractUsedSubsetAndReplace({
+       includeStarred: true,       // 只保留已标星
+       includeRelativesDepth: 1,   // 带1代亲属：父母/子女/配偶；不想带亲属就改 0
+       includeWithCage: false,
+       includeWithNotes: false,
+     });
+   if (ok) {
+     const after = miceStore.mice.length;
+     alert(`清理完成：从 ${before} → ${after} 条（已保存到云端）。`);
+   } else {
+     alert("没有星标老鼠，或清理未执行。请先给需要保留的老鼠加⭐。");
+   }
+ }
+
 
 const AUTO_SAVE_INTERVAL_MS = 15000;
 let autoSaveTimer = null;

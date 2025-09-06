@@ -40,25 +40,23 @@ export const useMiceStore = defineStore("mice", {
 
   actions: {
     // === 笼子操作 ===
-moveCageMice(fromCageId, toCageId) {
-  if (!fromCageId || !toCageId || fromCageId === toCageId) return false;
-  const moved = this.mice.filter(m => m.cageId === fromCageId);
-  moved.forEach(m => { m.cageId = toCageId });
-  this.addRecord(`📦 ${moved.length} 只老鼠从 ${this.getCageName(fromCageId)} → ${this.getCageName(toCageId)}`);
-  return moved.length;
-},
+    moveCageMice(fromCageId, toCageId) {
+      if (!fromCageId || !toCageId || fromCageId === toCageId) return false;
+      const moved = this.mice.filter(m => m.cageId === fromCageId);
+      moved.forEach(m => { m.cageId = toCageId });
+      this.addRecord(`📦 ${moved.length} 只老鼠从 ${this.getCageName(fromCageId)} → ${this.getCageName(toCageId)}`);
+      return moved.length;
+    },
 
-renameCage(cageId, newName) {
-  const cage = this.cages.find(c => c.id === cageId);
-  if (!cage) return false;
-  const oldName = cage.name;
-  cage.name = newName;
-  this.addRecord(`✏️ 笼子重命名: ${oldName} → ${newName}`);
-  return true;
-},
+    renameCage(cageId, newName) {
+      const cage = this.cages.find(c => c.id === cageId);
+      if (!cage) return false;
+      const oldName = cage.name;
+      cage.name = newName;
+      this.addRecord(`✏️ 笼子重命名: ${oldName} → ${newName}`);
+      return true;
+    },
 
-    
-    
     // === 云端存储 ===
     async saveToCloud(options = {}) {
       const silent = options.silent === true;
@@ -307,56 +305,51 @@ renameCage(cageId, newName) {
       );
       return true;
     },
-    
+
     // === 新增/修改：解除配偶（双向） ===
-unlinkSpouses(aId, bId) {
-  const a = this.mice.find(m => m.id === aId);
-  const b = this.mice.find(m => m.id === bId);
-  if (!a || !b) return false;
-  a.spouseIds = Array.isArray(a.spouseIds) ? a.spouseIds : [];
-  b.spouseIds = Array.isArray(b.spouseIds) ? b.spouseIds : [];
-  a.spouseIds = a.spouseIds.filter(id => id !== bId);
-  b.spouseIds = b.spouseIds.filter(id => id !== aId);
-  this.addRecord(`Unlink spouses: ${a.name || aId} × ${b.name || bId}`);
-  return true;
-},
+    unlinkSpouses(aId, bId) {
+      const a = this.mice.find(m => m.id === aId);
+      const b = this.mice.find(m => m.id === bId);
+      if (!a || !b) return false;
+      a.spouseIds = Array.isArray(a.spouseIds) ? a.spouseIds : [];
+      b.spouseIds = Array.isArray(b.spouseIds) ? b.spouseIds : [];
+      a.spouseIds = a.spouseIds.filter(id => id !== bId);
+      b.spouseIds = b.spouseIds.filter(id => id !== aId);
+      this.addRecord(`Unlink spouses: ${a.name || aId} × ${b.name || bId}`);
+      return true;
+    },
 
-// === 新增/修改：从“父/母 → 子”删除一条亲子关系（双向） ===
-// 这里 parentId 是“要移除关系的这位父/母”的 id；childId 是子女 id。
-removeChildFromParent(parentId, childId) {
-  const parent = this.mice.find(m => m.id === parentId);
-  const child  = this.mice.find(m => m.id === childId);
-  if (!parent || !child) return false;
+    // === 新增/修改：从“父/母 → 子”删除一条亲子关系（双向） ===
+    removeChildFromParent(parentId, childId) {
+      const parent = this.mice.find(m => m.id === parentId);
+      const child  = this.mice.find(m => m.id === childId);
+      if (!parent || !child) return false;
 
-  // 父/母侧删除 childrenIds
-  parent.childrenIds = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
-  parent.childrenIds = parent.childrenIds.filter(id => id !== childId);
+      parent.childrenIds = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
+      parent.childrenIds = parent.childrenIds.filter(id => id !== childId);
 
-  // 子侧清理 fatherId/motherId（只清掉“这位家长”的指针）
-  if (child.fatherId === parentId) child.fatherId = null;
-  if (child.motherId === parentId) child.motherId = null;
+      if (child.fatherId === parentId) child.fatherId = null;
+      if (child.motherId === parentId) child.motherId = null;
 
-  this.addRecord(`Remove child link: ${parent.name || parentId} –/→ ${child.name || childId}`);
-  return true;
-},
+      this.addRecord(`Remove child link: ${parent.name || parentId} –/→ ${child.name || childId}`);
+      return true;
+    },
 
-// === 新增/修改：统一删除入口，给组件调用更简单 ===
-// type: 'spouse' | 'child'
-removeRelationship(sourceId, targetId, type) {
-  if (type === 'spouse') {
-    return this.unlinkSpouses(sourceId, targetId);
-  } else if (type === 'child') {
-    return this.removeChildFromParent(sourceId, targetId);
-  }
-  return false;
-},
-
+    // === 新增/修改：统一删除入口，给组件调用更简单 ===
+    removeRelationship(sourceId, targetId, type) {
+      if (type === 'spouse') {
+        return this.unlinkSpouses(sourceId, targetId);
+      } else if (type === 'child') {
+        return this.removeChildFromParent(sourceId, targetId);
+      }
+      return false;
+    },
 
     // === 星标功能 ===
     toggleStar(mouseId) {
       const m = this.mice.find(x => x.id === mouseId);
       if (!m) return;
-      m.starred = !m.starred;   // 没有时自动加这个字段
+      m.starred = !m.starred;
       this.addRecord(`${m.starred ? "⭐ 标记" : "☆ 取消标记"}: ${m.name || mouseId}`);
     },
 
@@ -373,8 +366,216 @@ removeRelationship(sourceId, targetId, type) {
       this.cages = [];
       this.mice = [];
       this.deadMice = [];
-      this.records = [];   // ⚡ 修复：原来是 {}
+      this.records = [];
       this.breeding = {};
+    },
+
+    /* ====================== 🔧 新增：数据清洗/替换 工具 ====================== */
+
+    // 修剪坏关系指针
+    pruneBrokenRelations() {
+      const idSet = new Set(this.mice.map(m => m.id));
+      this.mice.forEach(m => {
+        m.spouseIds = Array.isArray(m.spouseIds) ? m.spouseIds.filter(id => idSet.has(id)) : [];
+        m.childrenIds = Array.isArray(m.childrenIds) ? m.childrenIds.filter(id => idSet.has(id)) : [];
+        if (m.fatherId && !idSet.has(m.fatherId)) m.fatherId = null;
+        if (m.motherId && !idSet.has(m.motherId)) m.motherId = null;
+        m.statuses = Array.isArray(m.statuses) ? m.statuses : [];
+      });
+      this.addRecord("🔧 关系修剪完成");
+    },
+
+    // 去重并合并信息
+    dedupeMice({ prefer = "id" } = {}) {
+      const key2 = (m) => `${m.name || ""}|${m.birthDate || ""}|${m.sex || ""}`.toLowerCase();
+      const result = [];
+      const seenById = new Map();
+      const seenByKey2 = new Map();
+
+      const pick = (x, y) => (x == null || x === "" ? y : x);
+      const arrMerge = (A = [], B = []) => Array.from(new Set([...(A||[]), ...(B||[])]));
+
+      const merge = (a, b) => ({
+        ...a,
+        name: pick(a.name, b.name),
+        genotype: pick(a.genotype, b.genotype),
+        birthDate: pick(a.birthDate, b.birthDate),
+        group: pick(a.group, b.group),
+        notes: [a.notes, b.notes].filter(Boolean).join(" | "),
+        statuses: arrMerge(a.statuses, b.statuses),
+        spouseIds: arrMerge(a.spouseIds, b.spouseIds),
+        childrenIds: arrMerge(a.childrenIds, b.childrenIds),
+        fatherId: pick(a.fatherId, b.fatherId),
+        motherId: pick(a.motherId, b.motherId),
+        cageId: pick(a.cageId, b.cageId),
+        starred: a.starred || b.starred || false,
+      });
+
+      const pushOrMerge = (m) => {
+        m.spouseIds = Array.isArray(m.spouseIds) ? m.spouseIds : [];
+        m.childrenIds = Array.isArray(m.childrenIds) ? m.childrenIds : [];
+        m.statuses = Array.isArray(m.statuses) ? m.statuses : [];
+        const id = m.id;
+        const k2 = key2(m);
+
+        if (prefer === "id" && id) {
+          if (!seenById.has(id)) {
+            seenById.set(id, m);
+            result.push(m);
+          } else {
+            const idx = result.findIndex(x => x.id === id);
+            result[idx] = merge(result[idx], m);
+          }
+        } else {
+          if (!seenByKey2.has(k2)) {
+            seenByKey2.set(k2, m);
+            result.push(m);
+          } else {
+            const idx = result.findIndex(x => key2(x) === k2);
+            result[idx] = merge(result[idx], m);
+          }
+        }
+      };
+
+      (this.mice || []).forEach(pushOrMerge);
+      this.mice = result;
+
+      this.pruneBrokenRelations();
+      this.addRecord(`🧹 去重完成：现有 ${this.mice.length} 条`);
+      return this.mice.length;
+    },
+
+    // 将未分笼的老鼠安置到某个笼位
+    assignUncagedTo(cageId) {
+      if (!cageId) return 0;
+      let count = 0;
+      this.mice.forEach(m => {
+        if (!m.cageId) { m.cageId = cageId; count++; }
+      });
+      if (count) this.addRecord(`📦 已安置 ${count} 只未分笼老鼠到 ${this.getCageName(cageId)}`);
+      return count;
+    },
+
+    // 替换式导入：清空现有数据，再导入 payload
+    replaceWithImport(payload) {
+      const clone = (x) => JSON.parse(JSON.stringify(x ?? null));
+
+      // 清空
+      this.cages = [];
+      this.mice = [];
+      this.deadMice = [];
+      this.records = [];
+      this.breeding = {};
+
+      // 导入
+      const p = payload || {};
+      this.cages = Array.isArray(p.cages) ? clone(p.cages) : [];
+      this.mice = Array.isArray(p.mice)
+        ? p.mice.map(m => ({
+            ...m,
+            sex: (m.sex === "♂" || m.sex === "male") ? "male" : (m.sex === "♀" || m.sex === "female") ? "female" : "normal",
+            spouseIds: Array.isArray(m.spouseIds) ? m.spouseIds : [],
+            childrenIds: Array.isArray(m.childrenIds) ? m.childrenIds : [],
+            fatherId: m.fatherId ?? null,
+            motherId: m.motherId ?? null,
+            statuses: Array.isArray(m.statuses) ? m.statuses : [],
+          }))
+        : [];
+
+      this.deadMice = Array.isArray(p.deadMice)
+        ? p.deadMice.map(m => ({
+            ...m,
+            spouseIds: Array.isArray(m.spouseIds) ? m.spouseIds : [],
+            childrenIds: Array.isArray(m.childrenIds) ? m.childrenIds : [],
+            fatherId: m.fatherId ?? null,
+            motherId: m.motherId ?? null,
+            statuses: Array.isArray(m.statuses) ? m.statuses : [],
+          }))
+        : [];
+
+      this.records = Array.isArray(p.records) ? clone(p.records) : [];
+      this.breeding = typeof p.breeding === "object" && p.breeding ? clone(p.breeding) : {};
+
+      // 修剪 + 去重兜底
+      this.pruneBrokenRelations();
+      this.dedupeMice({ prefer: "id" });
+
+      this.addRecord("📥 已替换式导入存档");
+      return true;
+    },
+
+    // 一键：仅保留“正在使用的”子集并替换当前库（为你定制：以⭐星标为准）
+    extractUsedSubsetAndReplace(options = {}) {
+      const {
+        // 默认：只保留星标老鼠；可以把 includeStarred=false 改为 true/false 自由组合
+        includeStarred = true,
+        includeWithCage = false,       // 你说主要靠星标，这里默认 false；改 true 则把有笼位的也保留
+        includeWithNotes = false,      // 备注不空的也保留（需要可以改 true）
+        includeRelativesDepth = 1,     // 向外包含几代亲属（0=只保留自己，1=父母/子女/配偶）
+        assignUncagedToName = "Unassigned",
+      } = options;
+
+      const idSet = new Set();
+
+      // 1) 选中核心集合
+      if (includeStarred) this.mice.forEach(m => { if (m.starred) idSet.add(m.id); });
+      if (includeWithCage) this.mice.forEach(m => { if (m.cageId) idSet.add(m.id); });
+      if (includeWithNotes) this.mice.forEach(m => { if ((m.notes || "").trim()) idSet.add(m.id); });
+
+      // 如果一个都没选中，避免清空库
+      if (!idSet.size) {
+        alert("没有找到符合条件的老鼠（例如未标星）。请先给需要保留的老鼠加⭐星标。");
+        return false;
+      }
+
+      // 2) 按代数扩展亲属（配偶/父母/子女）
+      const stepOnce = (seedSet) => {
+        const next = new Set(seedSet);
+        this.mice.forEach(m => {
+          if (seedSet.has(m.id)) {
+            (Array.isArray(m.spouseIds) ? m.spouseIds : []).forEach(id => next.add(id));
+            (Array.isArray(m.childrenIds) ? m.childrenIds : []).forEach(id => next.add(id));
+            if (m.fatherId) next.add(m.fatherId);
+            if (m.motherId) next.add(m.motherId);
+          }
+        });
+        return next;
+      };
+      for (let i = 0; i < Math.max(0, includeRelativesDepth); i++) {
+        const expanded = stepOnce(idSet);
+        if (expanded.size === idSet.size) break;
+        idSet.clear(); expanded.forEach(x => idSet.add(x));
+      }
+
+      // 3) 生成子集
+      const subsetMice = this.mice
+        .filter(m => idSet.has(m.id))
+        .map(m => ({
+          ...m,
+          spouseIds: Array.isArray(m.spouseIds) ? m.spouseIds : [],
+          childrenIds: Array.isArray(m.childrenIds) ? m.childrenIds : [],
+          statuses: Array.isArray(m.statuses) ? m.statuses : [],
+        }));
+
+      const cageIdSet = new Set(subsetMice.map(m => m.cageId).filter(Boolean));
+      const subsetCages = this.cages.filter(c => cageIdSet.has(c.id));
+
+      // 4) 替换式导入这份子集
+      const payload = { cages: subsetCages, mice: subsetMice, deadMice: [], records: [], breeding: {} };
+      this.replaceWithImport(payload);
+
+      // 5) 安置未分笼
+      let unassigned = this.cages.find(c => c.name === assignUncagedToName);
+      if (!unassigned) {
+        unassigned = { id: generateShortId(), name: assignUncagedToName, row: assignUncagedToName };
+        this.cages.push(unassigned);
+      }
+      this.assignUncagedTo(unassigned.id);
+
+      // 6) 保存并记录
+      this.saveToCloud({ silent: true });
+      this.addRecord(`🧽 已抽取并替换：保留 ${this.mice.length} 只（⭐星标为核心${includeRelativesDepth ? `，含 ${includeRelativesDepth} 代亲属` : ""}）`);
+      return true;
     },
   },
 });
