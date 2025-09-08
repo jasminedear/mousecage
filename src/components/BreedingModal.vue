@@ -85,7 +85,13 @@
         class="mb-6 border rounded p-4"
       >
         <div class="mb-2 flex items-center justify-between gap-3">
-          <h3 class="text-lg font-semibold">初始笼位：{{ miceStore.getCageName(pair.data.cageId) }}</h3>
+          <!-- ✅ 改：显示当前笼位 + 初始笼位 -->
+          <h3 class="text-lg font-semibold">
+            当前笼位：{{ miceStore.getCageName(pair.female.cageId) }}
+            <span class="text-sm font-normal text-gray-500 ml-2">
+              （初始：{{ miceStore.getCageName(pair.data.cageId) }}）
+            </span>
+          </h3>
           <button class="px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
                   @click="deletePair(pair)">删除配对</button>
         </div>
@@ -239,16 +245,15 @@ function ensureBreedingPairsInit() {
         const rec = miceStore.breeding[key] || [];
         const latest = Array.isArray(rec) ? rec[rec.length - 1] : rec;
         if (!latest || latest.status === "completed") {
+          // ✅ 改：只在需要创建时新建，不写空日期，避免把已有草稿/数据覆盖为空
           miceStore.updateBreeding(key, {
             maleId: male.id,
             femaleId: female.id,
             cageId: cage.id,
-            matingDate: "",
-            separationDate: "",
-            birthDate: "",
             status: "pending",
           });
         }
+        // 若 latest 存在且未完成，则保持不动
       });
     });
   });
@@ -318,15 +323,23 @@ const filteredPupsNeedingTag = computed(() => {
     return nameHit || cageHit;
   });
 });
-// pairs：按公/母名或笼位名匹配
+
+// pairs：按公/母名或【当前笼位】或【初始笼位】匹配
 const filteredBreedingPairs = computed(() => {
   const list = sortedBreedingPairs.value;
   const q = toKey(query.value);
   if (!q) return list;
+
   return list.filter((p) => {
-    const maleHit = toKey(p.male.name).includes(q);
+    const maleHit   = toKey(p.male.name).includes(q);
     const femaleHit = toKey(p.female.name).includes(q);
-    const cageHit = toKey(miceStore.getCageName(p.data.cageId)).includes(q);
+
+    // ✅ 新增：当前笼位（用母鼠当前笼位，与生成幼鼠时逻辑一致）
+    const currentCageName  = toKey(miceStore.getCageName(p.female.cageId));
+    // ✅ 保留：初始笼位（配对创建时记录的 cageId）
+    const initialCageName  = toKey(miceStore.getCageName(p.data.cageId));
+
+    const cageHit = currentCageName.includes(q) || initialCageName.includes(q);
     return maleHit || femaleHit || cageHit;
   });
 });
@@ -413,7 +426,7 @@ async function addOffspring(pair) {
   const mother = miceStore.mice.find((m) => sameId(m.id, pair.female.id));
   if (!mother) { alert("错误：找不到母鼠的当前笼位"); return; }
 
-  const cageId = mother.cageId;
+  const cageId = mother.cageId; // ✅ 以母鼠当前笼位为准
   const fatherId = pair.male.id;
   const motherId = pair.female.id;
 
@@ -453,7 +466,7 @@ const pupsNeedingTag = computed(() =>
       const isPup = Array.isArray(m.statuses) && m.statuses.includes("幼鼠");
       const days = ageDays(m.birthDate);
       const notTagged = !m.taggedAt;
-      return isPup && days >= 21 && notTagged;
+      return isPup && days >= 28 && notTagged;
     })
     .sort((a, b) => new Date(a.birthDate) - new Date(b.birthDate))
 );
